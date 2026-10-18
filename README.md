@@ -524,4 +524,4 @@ Stellar's fee structure and finality speed make it a better fit for the global f
 
 ## License
 
-MIT
+MIT — see [`LICENSE`](./LICENSE). Copyright © 2026 Vatal System.
