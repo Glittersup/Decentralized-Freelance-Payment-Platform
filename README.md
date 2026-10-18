@@ -109,6 +109,9 @@ Client / Freelancer ── submit(rater, ratee, escrow_id, score) ──► Repu
 The shared `interface` crate holds the types both contracts and clients agree on
 (`Milestone`, `EscrowData`, `EscrowError`), so encodings cannot drift apart.
 The events each contract emits are catalogued in [`docs/EVENTS.md`](./docs/EVENTS.md).
+For the full design — each contract's responsibilities, the complete escrow
+state machine, cross-contract calls, and the backend's role — see
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 ## Contract reference
 
@@ -484,6 +487,7 @@ Full checklist, environment tables, and post-deploy verification queries:
 
 | Document | Contents |
 |----------|----------|
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Contracts, escrow state machine, interactions, and the backend's role |
 | [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md) | End-to-end deploy checklist and what is live today |
 | [`docs/TESTNET.md`](./docs/TESTNET.md) | Live contract ids, explorer links, reproduction steps |
 | [`docs/EVENTS.md`](./docs/EVENTS.md) | Event catalogue for indexers and clients |
