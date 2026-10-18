@@ -115,6 +115,10 @@ async function loadDispute(id: string): Promise<DisputeWithParties> {
 // is kept (`Raised` carries no reason), and it is what `handleRaised` and
 // `/:id/sync` attach the on-chain id to later.
 //
+// The row starts PENDING and is deliberately invisible to `GET /:id` and to the
+// `disputes[]` on a job until the id exists (#32): building a transaction is not
+// disputing, and a user who never signs must not leave a phantom dispute.
+//
 // Idempotent per job: both parties can reach this route and only one row may
 // exist (the contract refuses a second `raise` for the same escrow), so the
 // first caller's reason wins and the second call is a no-op that returns the
@@ -152,16 +156,12 @@ disputesRouter.post("/", requireAuth, validate(raiseSchema), async (req, res, ne
     // Persist dispute record
     const dispute = await prisma.dispute.upsert({
       where: { jobId },
-      create: { jobId, raisedByAddress: addr, reason },
+      create: { jobId, raisedByAddress: addr, reason, status: "PENDING" },
       update: {},
     });
 
-    try {
-      await notifyDisputeOpened(job, { reason });
-    } catch (notifyErr) {
-      console.error("[notifications] Failed to send dispute notification:", notifyErr);
-    }
-
+    // No notification here: the dispute is not real until `raise` confirms.
+    // `/:id/sync` (and the indexer's `raised` handler) sends it instead.
     res.status(201).json({ dispute, xdr });
   } catch (err) {
     next(err);
@@ -169,10 +169,15 @@ disputesRouter.post("/", requireAuth, validate(raiseSchema), async (req, res, ne
 });
 
 // GET /api/disputes/:id
+//
+// A PENDING row is not a dispute yet — it is an intent whose transaction was
+// built but may never have been submitted. It is hidden here (404, the same as
+// a missing row) so a user-visible read can never report a dispute that never
+// happened (#32). Once `onChainId` is set the row is visible.
 disputesRouter.get("/:id", async (req, res, next) => {
   try {
-    const dispute = await prisma.dispute.findUnique({
-      where: { id: req.params.id },
+    const dispute = await prisma.dispute.findFirst({
+      where: { id: req.params.id, onChainId: { not: null } },
       include: { job: true },
     });
     if (!dispute) throw new AppError(404, "Dispute not found");
@@ -223,6 +228,11 @@ disputesRouter.post("/:id/raise", requireAuth, async (req, res, next) => {
 // The indexer reaches the same conclusion from the `raised` event, so this is
 // not the only writer — it just makes the id available to `/:id/resolve`
 // immediately instead of whenever the next poll lands.
+//
+// This is the confirmation that turns a PENDING intent into a real dispute:
+// it records the id, moves the row to RAISED, and sends the notification that
+// `POST /` deliberately withheld. Idempotent for the same id, so a retry or an
+// indexer race does not double-notify or fail.
 export const syncSchema = z.object({
   onChainId: z.number().int().nonnegative(),
 });
@@ -234,11 +244,28 @@ disputesRouter.post("/:id/sync", requireAuth, validate(syncSchema), async (req, 
     assertParticipant(dispute, addr);
 
     const { onChainId } = req.body as z.infer<typeof syncSchema>;
+    const id = BigInt(onChainId);
+
+    // A different id means this row already belongs to another on-chain
+    // dispute; the same id is a retry and is answered with the stored row.
+    if (dispute.onChainId !== null) {
+      if (dispute.onChainId === id) {
+        res.json(dispute);
+        return;
+      }
+      throw new AppError(409, "This dispute is already on-chain with a different id");
+    }
 
     const updated = await prisma.dispute.update({
       where: { id: dispute.id },
-      data: { onChainId: BigInt(onChainId) },
+      data: { onChainId: id, status: "RAISED" },
     });
+
+    try {
+      await notifyDisputeOpened(dispute.job, { reason: dispute.reason });
+    } catch (notifyErr) {
+      console.error("[notifications] Failed to send dispute notification:", notifyErr);
+    }
 
     res.json(updated);
   } catch (err) {

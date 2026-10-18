@@ -334,3 +334,39 @@ describe("POST /api/jobs with tags", () => {
     expect(h.job.create).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * GET /api/jobs/:id and pending disputes (issue #32).
+ *
+ * `POST /api/disputes` records an intent and returns unsigned XDR. Until the
+ * transaction confirms, that row has `onChainId = null` and is not a dispute:
+ * the detail route must filter it out, exactly like `GET /api/disputes/:id`
+ * 404s it. The assertion is on the query the route builds, because the stub
+ * cannot filter for us.
+ */
+describe("GET /api/jobs/:id: pending disputes", () => {
+  it("asks the database only for disputes that are on-chain", async () => {
+    h.job.findUnique.mockResolvedValue({ id: "job_1", disputes: [] });
+
+    const res = await get("/job_1");
+
+    expect(res.status).toBe(200);
+    const query = h.job.findUnique.mock.calls[0][0] as {
+      include: { disputes: { where: Record<string, unknown> } };
+    };
+    expect(query.include.disputes.where).toEqual({ onChainId: { not: null } });
+  });
+
+  it("serves a job with its confirmed dispute and no pending row", async () => {
+    h.job.findUnique.mockResolvedValue({
+      id: "job_1",
+      disputes: [{ id: "d1", jobId: "job_1", onChainId: "7", status: "RAISED" }],
+    });
+
+    const res = await get("/job_1");
+
+    expect(res.status).toBe(200);
+    expect(res.body.disputes).toHaveLength(1);
+    expect(res.body.disputes[0].onChainId).toBe("7");
+  });
+});

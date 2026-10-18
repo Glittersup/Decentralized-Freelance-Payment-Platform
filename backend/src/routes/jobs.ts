@@ -251,7 +251,9 @@ jobsRouter.get("/:id", async (req, res, next) => {
         },
         client: true,
         freelancer: true,
-        disputes: true,
+        // PENDING rows are intents whose transaction was built but not confirmed;
+        // they must not appear on a job either (#32).
+        disputes: { where: { onChainId: { not: null } }, orderBy: { createdAt: "asc" } },
         ratings: true,
         proposals: { include: { freelancer: true }, orderBy: { createdAt: "desc" } },
       },

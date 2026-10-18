@@ -49,6 +49,7 @@ const h = vi.hoisted(() => ({
     upsert: vi.fn(),
     update: vi.fn(),
     findUnique: vi.fn(),
+    findFirst: vi.fn(),
   },
   job: {
     findUnique: vi.fn(),
@@ -119,7 +120,13 @@ afterAll(async () => {
 
 beforeEach(() => {
   builtTxs.length = 0;
-  for (const fn of [h.dispute.upsert, h.dispute.update, h.dispute.findUnique, h.job.findUnique]) {
+  for (const fn of [
+    h.dispute.upsert,
+    h.dispute.update,
+    h.dispute.findUnique,
+    h.dispute.findFirst,
+    h.job.findUnique,
+  ]) {
     fn.mockReset();
   }
 });
@@ -140,7 +147,7 @@ function disputeRow(overrides: Record<string, unknown> = {}) {
     onChainId: null,
     raisedByAddress: CLIENT,
     reason: "The final milestone was never delivered",
-    status: "RAISED",
+    status: "PENDING",
     clientShare: null,
     freelancerShare: null,
     createdAt: new Date(),
@@ -172,6 +179,11 @@ async function post(path: string, address: string, body: unknown = {}) {
     },
     body: JSON.stringify(body),
   });
+  return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+}
+
+async function get(path: string) {
+  const res = await fetch(`${baseUrl}/api/disputes${path}`);
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
@@ -211,6 +223,8 @@ describe("POST /api/disputes", () => {
         jobId: "job_1",
         raisedByAddress: CLIENT,
         reason: "The final milestone was never delivered",
+        // The row is an intent until `dispute.raise` confirms (#32).
+        status: "PENDING",
       },
       update: {},
     });
@@ -235,6 +249,31 @@ describe("POST /api/disputes", () => {
 
     expect(res.status).toBe(400);
     expect(h.dispute.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/disputes/:id", () => {
+  it("hides a dispute that was built but never submitted", async () => {
+    // The row exists (with its reason) but has no on-chain id, so it is the
+    // phantom dispute #32 describes. The route must not report it.
+    h.dispute.findFirst.mockResolvedValue(null);
+
+    const res = await get("/dispute_1");
+
+    expect(res.status).toBe(404);
+    expect(h.dispute.findFirst).toHaveBeenCalledWith({
+      where: { id: "dispute_1", onChainId: { not: null } },
+      include: { job: true },
+    });
+  });
+
+  it("returns the dispute once the on-chain id is recorded", async () => {
+    h.dispute.findFirst.mockResolvedValue(disputeRow({ onChainId: 3n, status: "RAISED" }));
+
+    const res = await get("/dispute_1");
+
+    expect(res.status).toBe(200);
+    expect(res.body.onChainId).toBe("3");
   });
 });
 
@@ -298,7 +337,7 @@ describe("POST /api/disputes/:id/sync", () => {
     expect(res.body.onChainId).toBe("3");
     expect(h.dispute.update).toHaveBeenCalledWith({
       where: { id: "dispute_1" },
-      data: { onChainId: 3n },
+      data: { onChainId: 3n, status: "RAISED" },
     });
   });
 

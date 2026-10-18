@@ -69,14 +69,19 @@ properties of that mirror are deliberate:
 - **Carrying the reason and the id.** The `Raised` event has no reason field —
   `dispute.raise` takes the reason as an argument and only the off-chain row can
   keep it — while the on-chain dispute id does not exist until `raise`
-  confirms. So the row is written by `POST /api/disputes` *before* either
-  transaction, and the id is attached afterwards by whichever writes first:
+  confirms.  So the row is written by `POST /api/disputes` *before* either
+  transaction as `PENDING`, and the id is attached afterwards by whichever writes first:
   `POST /api/disputes/:id/sync` (called by the frontend with the id the contract
   returned, so arbitrators can rule without waiting for a poll) or the indexer's
   `raised` handler. Both write the same row: `Dispute.jobId` is unique and both
   upsert on it. A job can therefore be `DISPUTED` with a `Dispute` row whose
   `onChainId` is still `null`, and that is the intended state between the two
   transactions: the reason is recorded, the id is not yet known.
+- **A PENDING dispute is not user-visible.** `GET /api/disputes/:id` and the
+  `disputes[]` on `GET /api/jobs/:id` only return rows with `onChainId` set, so
+  a transaction that was built but never signed leaves no dispute behind. The
+  row (and its reason) survives for a retry, and the first writer of the id —
+  `/:id/sync` or the indexer — moves it to `RAISED`.
 - **A refund is terminal and closes the dispute.** `refunded` is emitted by both
   `reclaim_expired` and `reclaim_after_dispute_timeout`. The indexer sets the job
   to `REFUNDED` and moves every still-open dispute for that escrow (`RAISED` or

@@ -71,7 +71,13 @@ registry.registerComponent("securitySchemes", "bearerAuth", {
 
 const jobStatus = z.enum(["CREATED", "FUNDED", "ACTIVE", "COMPLETED", "DISPUTED", "REFUNDED"]);
 const milestoneStatus = z.enum(["PENDING", "RELEASED"]);
-const disputeStatus = z.enum(["RAISED", "UNDER_REVIEW", "RESOLVED", "REFUNDED"]);
+const disputeStatus = z.enum([
+  "PENDING",
+  "RAISED",
+  "UNDER_REVIEW",
+  "RESOLVED",
+  "REFUNDED",
+]);
 
 const publicUser = registry.register(
   "User",

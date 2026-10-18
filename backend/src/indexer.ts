@@ -778,8 +778,13 @@ export interface DisputeLifecycleStores {
         jobId: string;
         raisedByAddress: string;
         reason: string;
+        status?: DisputeStatus;
       };
-      update: { onChainId: bigint; raisedByAddress: string };
+      update: {
+        onChainId: bigint;
+        raisedByAddress: string;
+        status?: DisputeStatus;
+      };
     }): Promise<unknown>;
     updateMany(args: {
       where: { job: { escrowId: bigint }; status: { in: DisputeStatus[] } };
@@ -924,17 +929,19 @@ export async function handleRaised(
   if (!job) return;
 
   await db.dispute.upsert({
-    where: { jobId: job.id },
-    create: {
-      onChainId: disputeId,
-      jobId: job.id,
-      raisedByAddress: String(data.raised_by ?? ""),
-      reason: "",
-    },
-    update: {
-      onChainId: disputeId,
-      raisedByAddress: String(data.raised_by ?? ""),
-    },
+    where: { jobId: job.id },      create: {
+        onChainId: disputeId,
+        jobId: job.id,
+        raisedByAddress: String(data.raised_by ?? ""),
+        reason: "",
+        // `raised` is the confirmation; a row created here is real, not PENDING.
+        status: "RAISED",
+      },
+      update: {
+        onChainId: disputeId,
+        raisedByAddress: String(data.raised_by ?? ""),
+        status: "RAISED",
+      },
   });
 }
 

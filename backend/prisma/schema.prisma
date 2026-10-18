@@ -145,7 +145,11 @@ model Dispute {
   job              Job           @relation(fields: [jobId], references: [id])
   raisedByAddress  String
   reason           String
-  status           DisputeStatus @default(RAISED)
+  /// PENDING until `POST /:id/sync` or the indexer's `raised` handler attaches
+  /// the on-chain id. A PENDING row is an intent, not a dispute: the API hides
+  /// it from every user-facing read so a transaction that was built but never
+  /// submitted leaves no dispute behind (#32).
+  status           DisputeStatus @default(PENDING)
   clientShare      Decimal?
   freelancerShare  Decimal?
   resolvedAt       DateTime?
@@ -157,6 +161,10 @@ model Dispute {
 }
 
 enum DisputeStatus {
+  /// The off-chain intent exists, but `dispute.raise` has not been confirmed.
+  /// Never user-visible on its own.
+  PENDING
+  /// `dispute.raise` confirmed; the on-chain id is recorded.
   RAISED
   UNDER_REVIEW
   /// A panel ruled and the escrow was resolved with a split.
