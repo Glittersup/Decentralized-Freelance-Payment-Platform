@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
     releaseMilestone: vi.fn(),
     openDispute: vi.fn(),
     reclaimDisputed: vi.fn(),
+    reclaimExpired: vi.fn(),
     submitRating: vi.fn(),
     getDisputeDeadline: vi.fn(),
     isPending: vi.fn(() => false),
@@ -118,6 +119,8 @@ beforeEach(() => {
   h.escrow.submitRating.mockResolvedValue({ hash: "HASH", result: undefined });
   h.escrow.reclaimDisputed.mockReset();
   h.escrow.reclaimDisputed.mockResolvedValue({ hash: "RECLAIMHASH", result: undefined });
+  h.escrow.reclaimExpired.mockReset();
+  h.escrow.reclaimExpired.mockResolvedValue({ hash: "RECLAIMEXPIREDHASH", result: undefined });
   h.escrow.getDisputeDeadline.mockReset();
   h.escrow.getDisputeDeadline.mockResolvedValue(BigInt(nowSeconds() + 3 * 86_400));
   h.escrow.isPending.mockReset();
@@ -417,6 +420,74 @@ describe("JobDetail dispute timelock", () => {
 
     await screen.findByText(/frozen pending arbitration/i);
     expect(screen.queryByRole("button", { name: "Reclaim after timeout" })).toBeNull();
+  });
+});
+
+describe("JobDetail expired escrow reclaim (#82)", () => {
+  /** An Active escrow whose expiry has passed. */
+  const expired = {
+    ...ACTIVE,
+    expiry: BigInt(nowSeconds() - 3600), // expired 1 hour ago
+  };
+
+  it("shows a reclaim button for the client on an expired active escrow", async () => {
+    h.escrow.getEscrow.mockResolvedValue(expired);
+    h.wallet.publicKey = CLIENT;
+    render(<JobDetail />);
+
+    await screen.findByRole("button", { name: /Reclaim expired escrow/i });
+  });
+
+  it("does not show a reclaim button for a non-client on an expired escrow", async () => {
+    h.escrow.getEscrow.mockResolvedValue(expired);
+    h.wallet.publicKey = FREELANCER;
+    render(<JobDetail />);
+
+    await screen.findByText("Milestones");
+    expect(screen.queryByRole("button", { name: /Reclaim expired escrow/i })).toBeNull();
+  });
+
+  it("does not show a reclaim button for an active escrow that has not expired", async () => {
+    h.escrow.getEscrow.mockResolvedValue(ACTIVE);
+    h.wallet.publicKey = CLIENT;
+    render(<JobDetail />);
+
+    await screen.findByText("Milestones");
+    expect(screen.queryByRole("button", { name: /Reclaim expired escrow/i })).toBeNull();
+  });
+
+  it("submits reclaim_expired when the client clicks the button", async () => {
+    h.escrow.getEscrow.mockResolvedValue(expired);
+    h.wallet.publicKey = CLIENT;
+    render(<JobDetail />);
+
+    const button = await screen.findByRole("button", { name: /Reclaim expired escrow/i });
+    fireEvent.click(button);
+
+    await waitFor(() => expect(h.escrow.reclaimExpired).toHaveBeenCalledWith(7n));
+    const tx = await screen.findByRole("link", { name: /RECLAIMEXPIR/ });
+    expect(tx.getAttribute("href")).toBe("https://stellar.expert/tx/RECLAIMEXPIREDHASH");
+  });
+
+  it("disables the reclaim button while a reclaim is in flight", async () => {
+    h.escrow.getEscrow.mockResolvedValue(expired);
+    // Simulate a pending reclaim by making isPending return true for reclaim:7
+    h.escrow.isPending.mockReturnValue(true);
+    h.wallet.publicKey = CLIENT;
+    render(<JobDetail />);
+
+    // The button shows "Reclaiming…" while pending, so search for that.
+    const button = await screen.findByRole("button", { name: /Reclaiming/i }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+  });
+
+  it("does not show a reclaim button for a non-active escrow", async () => {
+    h.escrow.getEscrow.mockResolvedValue(COMPLETED);
+    h.wallet.publicKey = CLIENT;
+    render(<JobDetail />);
+
+    await screen.findByText("Milestones");
+    expect(screen.queryByRole("button", { name: /Reclaim expired escrow/i })).toBeNull();
   });
 });
 

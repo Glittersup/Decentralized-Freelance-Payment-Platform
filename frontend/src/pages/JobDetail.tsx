@@ -97,6 +97,7 @@ export default function JobDetail() {
     releaseMilestone,
     openDispute,
     reclaimDisputed,
+    reclaimExpired,
     submitRating,
     getDisputeDeadline,
     isPending,
@@ -721,6 +722,29 @@ export default function JobDetail() {
                     : "Reclaim after timeout"}
                 </button>
               )}
+            </section>
+          )}
+
+          {isActive && isClient && escrow.expiry > 0n && BigInt(now) > escrow.expiry && (
+            <section>
+              <p className="muted">
+                This escrow has passed its safety expiry. Unreleased funds can be reclaimed.
+              </p>
+              <button
+                disabled={isPending("reclaim", `${escrowId}`)}
+                aria-busy={isPending("reclaim", `${escrowId}`)}
+                title="Refund the unreleased funds to your wallet"
+                onClick={() =>
+                  void reclaimExpired(escrowId).then((res) => {
+                    if (res) setLastHash(res.hash);
+                    void refresh();
+                  })
+                }
+              >
+                {isPending("reclaim", `${escrowId}`)
+                  ? "Reclaiming…"
+                  : "Reclaim expired escrow"}
+              </button>
             </section>
           )}
 
