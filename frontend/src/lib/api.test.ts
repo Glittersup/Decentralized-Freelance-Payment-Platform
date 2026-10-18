@@ -19,6 +19,9 @@ import {
   sendMessage,
   submitRating,
   unsaveJob,
+  submitProposal,
+  fetchProposals,
+  assignFreelancer,
   type JobApi,
 } from "./api";
 

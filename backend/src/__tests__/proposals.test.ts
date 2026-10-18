@@ -6,7 +6,9 @@ import { jobsRouter } from "../routes/jobs";
 import { errorHandler } from "../middleware/errorHandler";
 
 const CLIENT = "GBPLJHDI6RPLS4EEJJTM7EVEV3UNTXLFAACWA63QSTHGLWH5RO3LQ75B";
-const FREELANCER = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN";
+// A checksum-valid G address (the previous fixture was 55 characters, so the
+// assign schema correctly rejected it).
+const FREELANCER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
 const OTHER_USER = "GDMVLW7Y3L2R5G3U2SBNFFXN677OHZCRW3B2PZ6WJFF3TPLXJ5L4I2KJ";
 
 const JWT_SECRET = process.env.JWT_SECRET || "development-secret-change-in-production";

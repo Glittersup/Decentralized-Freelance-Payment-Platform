@@ -131,6 +131,16 @@ export default function JobDetail() {
   const [reason, setReason] = useState("");
   const [disputeNote, setDisputeNote] = useState<string | null>(null);
 
+  // Deliverable attachments state (issue #65)
+  const [offChainJobId, setOffChainJobId] = useState<string | null>(null);
+  const [deliverables, setDeliverables] = useState<Record<number, DeliverableApi[]>>({});
+  const [attachingMilestoneIndex, setAttachingMilestoneIndex] = useState<number | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [deliverableDesc, setDeliverableDesc] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+
   const escrowId = id ? parseEscrowId(id) : null;
 
   const loadJobDeliverables = useCallback(async (jobIdToLoad: string) => {
@@ -139,7 +149,7 @@ export default function JobDetail() {
       if (job?.milestones) {
         const map: Record<number, DeliverableApi[]> = {};
         for (const m of job.milestones) {
-          if (m.deliverables) {
+          if (m.deliverables && m.index !== undefined) {
             map[m.index] = m.deliverables;
           }
         }
@@ -478,44 +488,160 @@ export default function JobDetail() {
           <h2>Milestones</h2>
           <ol>
             {escrow.milestones.map((m, i) => (
-              <li key={i}>
-                {fromBaseUnits(m.amount, decimals)} {symbol}{" "}
-                <FiatEstimate amount={fromBaseUnits(m.amount, decimals)} asset={symbol} /> —{" "}
-                {m.released
-                  ? "released"
-                  : `${fromBaseUnits(m.released_amount, decimals)} released, ${fromBaseUnits(
-                      m.amount - m.released_amount,
-                      decimals,
-                    )} remaining`}{" "}
-                {!m.released && m.deadline > 0n && (
-                  <span className="muted">
-                    · due{" "}
-                    <time
-                      dateTime={new Date(Number(m.deadline) * 1000).toISOString()}
+              <li key={i} style={{ marginBottom: "1.25rem" }}>
+                <div>
+                  {fromBaseUnits(m.amount, decimals)} {symbol}{" "}
+                  <FiatEstimate amount={fromBaseUnits(m.amount, decimals)} asset={symbol} /> —{" "}
+                  {m.released
+                    ? "released"
+                    : `${fromBaseUnits(m.released_amount, decimals)} released, ${fromBaseUnits(
+                        m.amount - m.released_amount,
+                        decimals,
+                      )} remaining`}{" "}
+                  {!m.released && m.deadline > 0n && (
+                    <span className="muted">
+                      · due{" "}
+                      <time
+                        dateTime={new Date(Number(m.deadline) * 1000).toISOString()}
+                      >
+                        {formatDeadline(m.deadline)}
+                      </time>
+                      {secondsUntil(m.deadline, milestoneNow) === 0
+                        ? " (overdue)"
+                        : ` (${formatRemaining(
+                            secondsUntil(m.deadline, milestoneNow),
+                          )} left)`}
+                    </span>
+                  )}{" "}
+                  {isClient && isActive && !m.released && (
+                    <button
+                      disabled={isPending("release", `${escrowId}:${i}`)}
+                      aria-busy={isPending("release", `${escrowId}:${i}`)}
+                      onClick={() =>
+                        void releaseMilestone(escrowId, i).then((res) => {
+                          if (res) setLastHash(res.hash);
+                          void refresh();
+                        })
+                      }
                     >
-                      {formatDeadline(m.deadline)}
-                    </time>
-                    {secondsUntil(m.deadline, milestoneNow) === 0
-                      ? " (overdue)"
-                      : ` (${formatRemaining(
-                          secondsUntil(m.deadline, milestoneNow),
-                        )} left)`}
-                  </span>
-                )}{" "}
-                {isClient && isActive && !m.released && (
-                  <button
-                    disabled={isPending("release", `${escrowId}:${i}`)}
-                    aria-busy={isPending("release", `${escrowId}:${i}`)}
-                    onClick={() =>
-                      void releaseMilestone(escrowId, i).then((res) => {
-                        if (res) setLastHash(res.hash);
-                        void refresh();
-                      })
-                    }
-                  >
-                    Release
-                  </button>
-                )}
+                      Release
+                    </button>
+                  )}
+                </div>
+
+                {/* Deliverables for this milestone (issue #65). */}
+                <div
+                  style={{
+                    marginTop: "0.5rem",
+                    padding: "0.5rem",
+                    background: "var(--bg)",
+                    borderRadius: "var(--radius)",
+                  }}
+                >
+                  <strong>Deliverables:</strong>
+                  {!deliverables[i] || deliverables[i].length === 0 ? (
+                    <p className="muted" style={{ margin: "0.25rem 0", fontSize: "0.9rem" }}>
+                      No deliverable files attached yet.
+                    </p>
+                  ) : (
+                    <ul
+                      style={{
+                        margin: "0.25rem 0",
+                        paddingLeft: "1.25rem",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      {deliverables[i].map((d) => (
+                        <li key={d.id}>
+                          <a
+                            href={d.fileUrl}
+                            download={d.fileName}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {d.fileName}
+                          </a>
+                          {d.fileSize ? ` (${(d.fileSize / 1024).toFixed(1)} KB)` : ""}
+                          {d.description ? ` — ${d.description}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {isFreelancer && isActive && !m.released && (
+                    <div style={{ marginTop: "0.5rem" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAttachingMilestoneIndex(attachingMilestoneIndex === i ? null : i);
+                          setUploadError(null);
+                          setUploadSuccess(null);
+                        }}
+                      >
+                        {attachingMilestoneIndex === i
+                          ? "Cancel Attachment"
+                          : "Attach Deliverable"}
+                      </button>
+
+                      {attachingMilestoneIndex === i && (
+                        <form
+                          onSubmit={(e) => void handleUploadDeliverable(e, i)}
+                          style={{
+                            marginTop: "0.5rem",
+                            padding: "0.5rem",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius)",
+                            background: "var(--surface)",
+                          }}
+                        >
+                          <label>
+                            Select File
+                            <br />
+                            <input
+                              type="file"
+                              onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                              required
+                            />
+                          </label>
+                          <br />
+                          <label style={{ display: "block", marginTop: "0.5rem" }}>
+                            Description (optional)
+                            <br />
+                            <input
+                              type="text"
+                              value={deliverableDesc}
+                              onChange={(e) => setDeliverableDesc(e.target.value)}
+                              placeholder="Notes about this deliverable…"
+                              size={40}
+                            />
+                          </label>
+                          {uploadError && (
+                            <p
+                              role="alert"
+                              className="alert alert-error"
+                              style={{ marginTop: "0.5rem" }}
+                            >
+                              {uploadError}
+                            </p>
+                          )}
+                          {uploadSuccess && (
+                            <p className="alert" style={{ marginTop: "0.5rem" }}>
+                              {uploadSuccess}
+                            </p>
+                          )}
+                          <button
+                            type="submit"
+                            disabled={uploading || !selectedFile}
+                            className="btn-primary"
+                            style={{ marginTop: "0.5rem" }}
+                          >
+                            {uploading ? "Uploading…" : "Upload Deliverable"}
+                          </button>
+                        </form>
+                      )}
+                    </div>
+                  )}
+                </div>
               </li>
             ))}
           </ol>

@@ -50,10 +50,11 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { SorobanRpc } from "@stellar/stellar-sdk";
-import type { DisputeStatus, JobStatus, NotificationType } from "@prisma/client";
+import type { DisputeStatus, JobStatus, MilestoneStatus, NotificationType } from "@prisma/client";
 import { config } from "./config";
 import { prisma } from "./db";
 import { checkConfiguredContractIds, type ContractIdName } from "./lib/contractFreshness";
+import { ASSETS, formatAmount, fromBaseUnits, toBaseUnits } from "./lib/assets";
 import {
   KNOWN_EVENTS,
   decodeEventFields,
@@ -448,7 +449,7 @@ export async function dispatchEvent(
       await handleMilestonesUpdated(escrowId, data, store);
       break;
     case "milestone_released":
-      await handleMilestoneReleased(escrowId, data, store);
+      await handleMilestoneReleased(data, store as unknown as MilestoneReleaseStores);
       break;
     case "dispute_opened":
       await handleDisputeOpened(store as unknown as DisputeLifecycleStores, data);
@@ -644,22 +645,87 @@ async function handleMilestonesUpdated(
   });
 }
 
-async function handleMilestoneReleased(
-  escrowId: bigint | null,
+/**
+ * The slice of `prisma` the milestone-release handler reads and writes, kept
+ * structural (like `DisputeLifecycleStores`) so a partial-then-full sequence can
+ * be driven through the real handler against an in-memory store.
+ */
+export interface MilestoneReleaseStores {
+  job: {
+    findUnique(args: {
+      where: { escrowId: bigint };
+      include: { milestones: true };
+    }): Promise<MilestoneReleaseJob | null>;
+    update(args: { where: { id: string }; data: { status: JobStatus } }): Promise<unknown>;
+  };
+  milestone: {
+    update(args: {
+      where: { id: string };
+      data: {
+        status?: MilestoneStatus;
+        releasedAt?: Date;
+        releasedAmount?: string;
+      };
+    }): Promise<unknown>;
+  };
+}
+
+/** The job row `handleMilestoneReleased` loads, milestones included. */
+export interface MilestoneReleaseJob {
+  id: string;
+  /** Asset symbol the job pays in — selects the decimal scale for the amounts. */
+  asset: string;
+  milestones: Array<{
+    id: string;
+    index: number;
+    status: MilestoneStatus;
+    /** Prisma `Decimal` at runtime; anything stringifiable works here. */
+    amountUsdc: { toString(): string } | string | number;
+    releasedAmount: { toString(): string } | string | number;
+  }>;
+}
+
+/**
+ * A `milestone_released` event is emitted by *both* `release_milestone` and
+ * `release_partial`, and its `amount` is the sum paid by *this* call — not the
+ * milestone's total. Marking the milestone RELEASED on every event (the
+ * behaviour before issue #25) records a half-paid milestone as done and
+ * completes the job while the freelancer is still owed the remainder.
+ *
+ * So the handler accumulates: each event's `amount` is added to the milestone's
+ * `releasedAmount`, and the milestone only flips to RELEASED once the running
+ * total reaches `amountUsdc`. Comparing the event's amount to the milestone
+ * total instead would still be wrong for a partial-then-full sequence, because
+ * `release_milestone` emits only the *remaining* amount after earlier partials.
+ * The job completes only when every milestone is fully released.
+ */
+export async function handleMilestoneReleased(
   data: Record<string, unknown>,
-  store: IndexerStore,
+  store: MilestoneReleaseStores = prisma as unknown as MilestoneReleaseStores,
 ): Promise<void> {
+  const escrowId = asBigInt(data.escrow_id);
   const index = asNumber(data.index);
   if (escrowId === null || index === null) return;
 
   const job = await store.job.findUnique({
     where: { escrowId },
-    include: { milestones: true, client: true, freelancer: true },
+    include: { milestones: true },
   });
   if (!job) return;
 
   const milestone = job.milestones.find((m) => m.index === index);
   if (!milestone) return;
+
+  // Amounts arrive as i128 base units; the milestone columns are decimals in
+  // the asset's human units. Convert both to base units (exact bigint math),
+  // then store the human-unit string back.
+  const decimals = ASSETS[job.asset.toUpperCase()]?.decimals ?? 7;
+  const milestoneTotal = toBaseUnits(String(milestone.amountUsdc), decimals);
+  const releasedSoFar =
+    toBaseUnits(String(milestone.releasedAmount ?? 0), decimals) + (asBigInt(data.amount) ?? 0n);
+
+  // A zero-amount milestone cannot be "released" by arithmetic; leave it alone.
+  const fullyReleased = milestoneTotal > 0n && releasedSoFar >= milestoneTotal;
 
   await store.milestone.update({
     where: { id: milestone.id },
@@ -682,14 +748,6 @@ async function handleMilestoneReleased(
   if (allReleased) {
     await store.job.update({ where: { id: job.id }, data: { status: "COMPLETED" } });
   }
-
-  await notifyParticipants(
-    escrowId,
-    "RELEASED",
-    "Milestone Released",
-    `Milestone ${index + 1} for job "${job.title}" has been released.`,
-    store.job,
-  );
 }
 
 // ---------------------------------------------------------------------------

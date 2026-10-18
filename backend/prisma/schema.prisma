@@ -26,6 +26,8 @@ model User {
 
   jobsAsClient     Job[]      @relation("ClientJobs")
   jobsAsFreelancer Job[]      @relation("FreelancerJobs")
+  proposals        Proposal[] @relation("FreelancerProposals")
+  uploadedDeliverables Deliverable[] @relation("UploadedDeliverables")
   ratingsGiven     Rating[]   @relation("RatingsGiven")
   ratingsReceived  Rating[]   @relation("RatingsReceived")
   savedJobs        SavedJob[]
@@ -60,6 +62,7 @@ model Job {
   ratings         Rating[]
   savedBy         SavedJob[]
   messages        Message[]
+  proposals       Proposal[]
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -330,5 +333,51 @@ enum NotificationType {
   RELEASED
   DISPUTED
   RESOLVED
+}
+
+// ---------------------------------------------------------------------------
+// Proposals — freelancer applications for open jobs (issue #63)
+// ---------------------------------------------------------------------------
+model Proposal {
+  id           String         @id @default(cuid())
+  jobId        String
+  job          Job            @relation(fields: [jobId], references: [id])
+  freelancerId String
+  freelancer   User           @relation("FreelancerProposals", fields: [freelancerId], references: [id])
+  coverLetter  String?
+  proposedRate Decimal?
+  status       ProposalStatus @default(PENDING)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@unique([jobId, freelancerId])
+  @@index([jobId])
+  @@index([freelancerId])
+}
+
+enum ProposalStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+// ---------------------------------------------------------------------------
+// Deliverables — off-chain milestone attachments (issue #65)
+// ---------------------------------------------------------------------------
+model Deliverable {
+  id           String    @id @default(cuid())
+  milestoneId  String
+  milestone    Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  fileName     String
+  fileUrl      String
+  fileSize     Int?
+  fileType     String?
+  description  String?
+  uploadedById String
+  uploadedBy   User      @relation("UploadedDeliverables", fields: [uploadedById], references: [id])
+  createdAt    DateTime  @default(now())
+
+  @@index([milestoneId])
+  @@index([uploadedById])
 }
 

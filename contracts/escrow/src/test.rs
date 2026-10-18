@@ -240,7 +240,7 @@ fn create_rejects_same_counterparty() {
 #[test]
 fn create_accepts_max_milestones() {
     let f = fixture();
-    let amounts = vec![100i128; 20];
+    let amounts = [100i128; 20];
     let id = f.c().create(
         &f.client,
         &f.freelancer,
@@ -256,7 +256,7 @@ fn create_accepts_max_milestones() {
 #[test]
 fn create_rejects_too_many_milestones() {
     let f = fixture();
-    let amounts = vec![100i128; 21];
+    let amounts = [100i128; 21];
     let res = f.c().try_create(
         &f.client,
         &f.freelancer,
@@ -349,7 +349,7 @@ fn update_milestones_accepts_max_milestones() {
         &milestones(&f.env, &[300, 700]),
         &10_000,
     );
-    let amounts = vec![50i128; 20];
+    let amounts = [50i128; 20];
     f.c().update_milestones(&id, &milestones(&f.env, &amounts));
     assert_eq!(f.c().get(&id).milestones.len(), 20);
 }
@@ -364,7 +364,7 @@ fn update_milestones_rejects_too_many_milestones() {
         &milestones(&f.env, &[300, 700]),
         &10_000,
     );
-    let amounts = vec![50i128; 21];
+    let amounts = [50i128; 21];
     let res = f
         .c()
         .try_update_milestones(&id, &milestones(&f.env, &amounts));

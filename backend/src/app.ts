@@ -16,6 +16,7 @@ import { escrowRouter } from "./routes/escrow";
 import { disputesRouter } from "./routes/disputes";
 import { reputationRouter } from "./routes/reputation";
 import { notificationsRouter } from "./routes/notifications";
+import { milestonesRouter } from "./routes/milestones";
 
 /**
  * Access logging (issue #27).

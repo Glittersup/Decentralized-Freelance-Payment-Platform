@@ -27,7 +27,11 @@ import { z, type ZodTypeAny } from "zod";
 import { OpenAPIRegistry, OpenApiGeneratorV3, extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
 
 import { config } from "./config";
-import { createJobSchema } from "./lib/schemas";
+import {
+  createDeliverableSchema,
+  createJobSchema,
+  createProposalSchema,
+} from "./lib/schemas";
 import { authSchema, updateSchema } from "./routes/users";
 import {
   buildCreateSchema,
@@ -245,6 +249,15 @@ registry.registerPath({
 });
 
 registry.registerPath({
+  method: "get",
+  path: "/api/users/me",
+  tags: ["Users"],
+  summary: "Get your own profile",
+  security: auth,
+  responses: { 200: json(publicUser, "The authenticated user"), 401: errors[401] },
+});
+
+registry.registerPath({
   method: "put",
   path: "/api/users/me",
   tags: ["Users"],
@@ -406,6 +419,65 @@ registry.registerPath({
     ),
     404: errors[404],
   },
+});
+
+const proposal = z.object({
+  id: z.string(),
+  jobId: z.string(),
+  freelancerId: z.string(),
+  coverLetter: z.string().nullable(),
+  proposedRate: z.string().nullable(),
+  status: z.enum(["PENDING", "ACCEPTED", "REJECTED"]),
+  createdAt: z.date().or(z.string()),
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/jobs/{id}/proposals",
+  tags: ["Jobs"],
+  summary: "List the proposals submitted for a job",
+  request: { params: z.object({ id: z.string() }) },
+  responses: { 200: json(z.array(proposal), "The job's proposals") },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/jobs/{id}/proposals",
+  tags: ["Jobs"],
+  summary: "Apply to an open job",
+  security: auth,
+  request: {
+    params: z.object({ id: z.string() }),
+    body: { content: { "application/json": { schema: createProposalSchema } } },
+  },
+  responses: {
+    201: json(proposal, "The submitted proposal"),
+    400: errors[400],
+    401: errors[401],
+    404: errors[404],
+  },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/jobs/{jobId}/milestones/{index}/deliverables",
+  tags: ["Jobs"],
+  summary: "Attach a deliverable to a milestone (assigned freelancer only)",
+  security: auth,
+  request: {
+    params: z.object({ jobId: z.string(), index: z.coerce.number().int() }),
+    body: { content: { "application/json": { schema: createDeliverableSchema } } },
+  },
+  responses: { 201: json(z.object({ id: z.string() }), "The deliverable"), 400: errors[400] },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/jobs/{jobId}/milestones/{index}/deliverables",
+  tags: ["Jobs"],
+  summary: "List a milestone's deliverables",
+  request: { params: z.object({ jobId: z.string(), index: z.coerce.number().int() }) },
+  responses: { 200: json(z.array(z.object({ id: z.string() })), "The deliverables") },
 });
 
 registry.registerPath({

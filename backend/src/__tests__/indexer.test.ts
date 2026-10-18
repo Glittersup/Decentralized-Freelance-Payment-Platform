@@ -20,6 +20,7 @@ import {
   processContractEvents,
   resolveStartLedger,
   type DisputeLifecycleStores,
+  type IndexerStore,
   type MilestoneReleaseJob,
   type MilestoneReleaseStores,
   type RatedStores,
@@ -742,6 +743,9 @@ interface FakeMilestone {
   index: number;
   status: "PENDING" | "RELEASED";
   releasedAt: Date | null;
+  /** Human units, like the Prisma `Decimal` columns. */
+  amountUsdc: string;
+  releasedAmount: string;
 }
 
 interface FakeDispute {
@@ -771,8 +775,22 @@ function fakeJob(overrides: Partial<FakeJob> = {}): FakeJob {
     status: "CREATED",
     totalAmountUsdc: "1",
     milestones: [
-      { id: "m0", index: 0, status: "PENDING", releasedAt: null },
-      { id: "m1", index: 1, status: "PENDING", releasedAt: null },
+      {
+        id: "m0",
+        index: 0,
+        status: "PENDING",
+        releasedAt: null,
+        amountUsdc: "0.5",
+        releasedAmount: "0",
+      },
+      {
+        id: "m1",
+        index: 1,
+        status: "PENDING",
+        releasedAt: null,
+        amountUsdc: "0.5",
+        releasedAmount: "0",
+      },
     ],
     disputes: [],
     ...overrides,
@@ -919,7 +937,10 @@ describe("dispatchEvent", () => {
     const jobs = [fakeJob({ status: "ACTIVE" })];
 
     await dispatchEvent(
-      makeTopicEvent("milestone_released", 7n, { index: nativeToScVal(0, { type: "u32" }) }),
+      makeTopicEvent("milestone_released", 7n, {
+        index: nativeToScVal(0, { type: "u32" }),
+        amount: nativeToScVal(5_000_000n, { type: "i128" }),
+      }),
       makeStore(jobs),
     );
 
@@ -936,7 +957,10 @@ describe("dispatchEvent", () => {
 
     for (const index of [0, 1]) {
       await dispatchEvent(
-        makeTopicEvent("milestone_released", 7n, { index: nativeToScVal(index, { type: "u32" }) }),
+        makeTopicEvent("milestone_released", 7n, {
+          index: nativeToScVal(index, { type: "u32" }),
+          amount: nativeToScVal(5_000_000n, { type: "i128" }),
+        }),
         store,
       );
     }

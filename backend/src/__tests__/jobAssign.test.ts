@@ -17,6 +17,10 @@ const db = vi.hoisted(() => ({
   user: {
     findUnique: vi.fn(),
   },
+  // Assignment also accepts the winning application and rejects the rest.
+  proposal: {
+    updateMany: vi.fn(),
+  },
 }));
 
 vi.mock("../db", () => ({ prisma: db }));

@@ -24,6 +24,10 @@ const h = vi.hoisted(() => ({
   },
   fetchJobs: vi.fn(),
   fetchReminders: vi.fn(async () => [] as unknown[]),
+  // Proposal application / applicant review (issue #63).
+  fetchProposals: vi.fn(),
+  submitProposal: vi.fn(),
+  assignFreelancer: vi.fn(),
   // The bookmark list is authenticated and loaded when a wallet connects (#71).
   authenticate: vi.fn(async () => "jwt-1"),
   fetchSavedJobs: vi.fn(async () => [] as unknown[]),
@@ -48,6 +52,9 @@ vi.mock("../lib/prices", async (importOriginal) => ({
 vi.mock("../lib/api", () => ({
   fetchJobs: h.fetchJobs,
   fetchReminders: h.fetchReminders,
+  fetchProposals: h.fetchProposals,
+  submitProposal: h.submitProposal,
+  assignFreelancer: h.assignFreelancer,
   authenticate: h.authenticate,
   fetchSavedJobs: h.fetchSavedJobs,
   saveJob: h.saveJob,
@@ -100,6 +107,9 @@ beforeEach(() => {
   h.fetchJobs.mockResolvedValue([]);
   h.fetchReminders.mockReset();
   h.fetchReminders.mockResolvedValue([]);
+  h.fetchProposals.mockReset();
+  h.submitProposal.mockReset();
+  h.assignFreelancer.mockReset();
   h.fetchSavedJobs.mockReset();
   h.fetchSavedJobs.mockResolvedValue([]);
   h.saveJob.mockClear();
@@ -574,7 +584,7 @@ describe("Dashboard proposals and applicants (Issue #63)", () => {
       expect(h.submitProposal).toHaveBeenCalledWith(
         "job-open-1",
         { coverLetter: "I have 5 years of experience", proposedRate: "100" },
-        "mock-token",
+        "jwt-1",
       );
     });
     expect(await screen.findByText("Application submitted successfully!")).toBeTruthy();
@@ -613,7 +623,7 @@ describe("Dashboard proposals and applicants (Issue #63)", () => {
 
     fireEvent.click(assignBtn);
     await waitFor(() => {
-      expect(h.assignFreelancer).toHaveBeenCalledWith("job-open-1", FREELANCER, "mock-token");
+      expect(h.assignFreelancer).toHaveBeenCalledWith("job-open-1", FREELANCER, "jwt-1");
     });
   });
 });

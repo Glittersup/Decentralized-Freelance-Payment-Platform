@@ -28,9 +28,7 @@ const h = vi.hoisted(() => ({
   api: {
     fetchUserProfile: vi.fn(),
     updateUserProfile: vi.fn(),
-    authenticate: vi.fn(async (..._args: unknown[]) => "test-jwt-token"),
-  },
-  api: {
+    authenticate: vi.fn(async () => "test-jwt-token"),
     fetchUserJobs: vi.fn(),
     fetchRatingsReceived: vi.fn(),
     fetchTransactions: vi.fn(),
@@ -49,6 +47,9 @@ vi.mock("../lib/api", () => ({
   fetchUserJobs: h.api.fetchUserJobs,
   fetchRatingsReceived: h.api.fetchRatingsReceived,
   fetchTransactions: h.api.fetchTransactions,
+  fetchUserProfile: h.api.fetchUserProfile,
+  updateUserProfile: h.api.updateUserProfile,
+  authenticate: h.api.authenticate,
 }));
 
 import { ContractReadError } from "../lib/errors";
@@ -117,6 +118,12 @@ beforeEach(() => {
   h.api.fetchRatingsReceived.mockResolvedValue([]);
   h.api.fetchTransactions.mockReset();
   h.api.fetchTransactions.mockResolvedValue([]);
+  h.api.fetchUserProfile.mockReset();
+  h.api.fetchUserProfile.mockResolvedValue(null);
+  h.api.updateUserProfile.mockReset();
+  h.api.updateUserProfile.mockResolvedValue({});
+  h.api.authenticate.mockReset();
+  h.api.authenticate.mockResolvedValue("test-jwt-token");
 });
 
 afterEach(() => cleanup());
@@ -391,3 +398,4 @@ describe("Profile transaction history (#72)", () => {
     expect(await screen.findByText("No on-chain activity yet.")).toBeTruthy();
   });
 });
+

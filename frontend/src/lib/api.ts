@@ -41,6 +41,10 @@ export interface JobListQuery {
   freelancer?: string;
   /** Curated skill-tag slug (see `lib/tags.ts`); issue #70. */
   tag?: string;
+  /** Keyword search across title + description (issue #62). */
+  q?: string;
+  /** `newest` | `oldest` | `amount_desc` | `amount_asc` (issue #62). */
+  sort?: string;
   page?: number;
   limit?: number;
 }
@@ -60,7 +64,39 @@ export function buildJobsQuery(query: JobListQuery = {}): string {
   return qs ? `?${qs}` : "";
 }
 
+/** A freelancer's application for an open job (issue #63). */
+export interface ProposalApi {
+  id: string;
+  jobId: string;
+  freelancerId: string;
+  coverLetter?: string | null;
+  proposedRate?: string | number | null;
+  status: "PENDING" | "ACCEPTED" | "REJECTED";
+  createdAt: string;
+  freelancer?: {
+    id: string;
+    stellarAddress: string;
+    displayName?: string | null;
+  };
+}
+
 /** A milestone row as the jobs API returns it (see the Prisma model). */
+/** A file attached to a milestone as proof of delivery (issue #65). */
+export interface DeliverableApi {
+  id: string;
+  milestoneId: string;
+  fileName: string;
+  fileUrl: string;
+  fileSize?: number | null;
+  fileType?: string | null;
+  description?: string | null;
+  createdAt: string;
+  uploadedBy?: {
+    stellarAddress: string;
+    displayName?: string | null;
+  };
+}
+
 export interface JobMilestoneApi {
   id?: string;
   index?: number;
@@ -69,6 +105,8 @@ export interface JobMilestoneApi {
   status: string;
   deadline?: string | null;
   releasedAt?: string | null;
+  /** Deliverable files a freelancer attached (issue #65). */
+  deliverables?: DeliverableApi[];
 }
 
 export interface JobApi {
@@ -89,6 +127,8 @@ export interface JobApi {
   freelancer?: { stellarAddress: string } | null;
   /** Present on the list/detail responses; used by the activity summary (#73). */
   milestones?: JobMilestoneApi[];
+  /** Present on the detail response; freelancer applications (issue #63). */
+  proposals?: ProposalApi[];
 }
 
 /** Fetch a page of jobs. Throws on a non-2xx response. */
@@ -101,6 +141,62 @@ export async function fetchJobs(
   });
   if (!res.ok) throw new Error(`Could not load jobs (HTTP ${res.status})`);
   return (await res.json()) as JobApi[];
+}
+
+/** Fetch a single job by id (used for milestone deliverables, issue #65). */
+export async function fetchJob(id: string): Promise<JobApi> {
+  const res = await fetch(`${API_BASE_URL}/api/jobs/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error(`Could not load job (HTTP ${res.status})`);
+  return (await res.json()) as JobApi;
+}
+
+/** Fetch the proposals submitted for a job (issue #63). */
+export async function fetchProposals(jobId: string): Promise<ProposalApi[]> {
+  const res = await fetch(`${API_BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/proposals`);
+  if (!res.ok) throw new Error(`Could not load proposals (HTTP ${res.status})`);
+  return (await res.json()) as ProposalApi[];
+}
+
+/** Submit an application for an open job (issue #63). */
+export async function submitProposal(
+  jobId: string,
+  input: { coverLetter?: string; proposedRate?: string | number },
+  token: string,
+): Promise<ProposalApi> {
+  const res = await fetch(`${API_BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/proposals`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const errorData = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(errorData?.error ?? `Could not submit proposal (HTTP ${res.status})`);
+  }
+  return (await res.json()) as ProposalApi;
+}
+
+/** Assign a freelancer to a job, accepting that proposal (issue #63). */
+export async function assignFreelancer(
+  jobId: string,
+  freelancerAddress: string,
+  token: string,
+): Promise<JobApi> {
+  const res = await fetch(`${API_BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/assign`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ freelancerAddress }),
+  });
+  if (!res.ok) {
+    const errorData = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(errorData?.error ?? `Could not assign freelancer (HTTP ${res.status})`);
+  }
+  return (await res.json()) as JobApi;
 }
 
 /**
@@ -729,6 +825,146 @@ export async function fetchUnreadCounts(token: string): Promise<UnreadCounts> {
   });
   if (!res.ok) throw new Error(`Could not load unread counts (HTTP ${res.status})`);
   return (await res.json()) as UnreadCounts;
+}
+
+// ---------------------------------------------------------------------------
+// Milestone deliverables (issue #65)
+// ---------------------------------------------------------------------------
+
+/** Attach a deliverable to a milestone by milestone id. */
+export async function uploadDeliverable(
+  milestoneId: string,
+  input: {
+    fileName: string;
+    fileUrl: string;
+    fileSize?: number;
+    fileType?: string;
+    description?: string;
+  },
+  token: string,
+): Promise<DeliverableApi> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/milestones/${encodeURIComponent(milestoneId)}/deliverables`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!res.ok) {
+    const errorData = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(errorData?.error ?? `Could not upload deliverable (HTTP ${res.status})`);
+  }
+  return (await res.json()) as DeliverableApi;
+}
+
+/** Attach a deliverable to a milestone by job id and index. */
+export async function uploadJobMilestoneDeliverable(
+  jobId: string,
+  milestoneIndex: number,
+  input: {
+    fileName: string;
+    fileUrl: string;
+    fileSize?: number;
+    fileType?: string;
+    description?: string;
+  },
+  token: string,
+): Promise<DeliverableApi> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/milestones/${milestoneIndex}/deliverables`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(input),
+    },
+  );
+  if (!res.ok) {
+    const errorData = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(errorData?.error ?? `Could not upload deliverable (HTTP ${res.status})`);
+  }
+  return (await res.json()) as DeliverableApi;
+}
+
+/** Fetch a milestone's deliverables by milestone id. */
+export async function fetchMilestoneDeliverables(
+  milestoneId: string,
+): Promise<DeliverableApi[]> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/milestones/${encodeURIComponent(milestoneId)}/deliverables`,
+  );
+  if (!res.ok) throw new Error(`Could not load deliverables (HTTP ${res.status})`);
+  return (await res.json()) as DeliverableApi[];
+}
+
+/** Fetch a milestone's deliverables by job id and index. */
+export async function fetchJobMilestoneDeliverables(
+  jobId: string,
+  milestoneIndex: number,
+): Promise<DeliverableApi[]> {
+  const res = await fetch(
+    `${API_BASE_URL}/api/jobs/${encodeURIComponent(jobId)}/milestones/${milestoneIndex}/deliverables`,
+  );
+  if (!res.ok) throw new Error(`Could not load deliverables (HTTP ${res.status})`);
+  return (await res.json()) as DeliverableApi[];
+}
+
+// ---------------------------------------------------------------------------
+// Off-chain profile and notification preferences (issue #67)
+// ---------------------------------------------------------------------------
+
+export interface UserProfileApi {
+  id: string;
+  stellarAddress: string;
+  displayName?: string | null;
+  bio?: string | null;
+  email?: string | null;
+  notifyOnDispute?: boolean;
+  notifyOnRelease?: boolean;
+  notifyOnRefund?: boolean;
+}
+
+export interface UpdateUserProfileInput {
+  displayName?: string;
+  bio?: string;
+  email?: string | null;
+  notifyOnDispute?: boolean;
+  notifyOnRelease?: boolean;
+  notifyOnRefund?: boolean;
+}
+
+/** Read a public profile (and, for the owner, the notification preferences). */
+export async function fetchUserProfile(
+  address: string,
+  signal?: AbortSignal,
+): Promise<UserProfileApi | null> {
+  const res = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(address)}`, { signal });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`Could not fetch user profile (HTTP ${res.status})`);
+  return (await res.json()) as UserProfileApi;
+}
+
+/** Update the authenticated user's profile and notification preferences. */
+export async function updateUserProfile(
+  input: UpdateUserProfileInput,
+  token: string,
+): Promise<UserProfileApi> {
+  const res = await fetch(`${API_BASE_URL}/api/users/me`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Could not update profile (HTTP ${res.status})`);
+  return (await res.json()) as UserProfileApi;
 }
 
 

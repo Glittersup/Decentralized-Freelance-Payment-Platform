@@ -86,7 +86,24 @@ export const listJobsQuerySchema = z.object({
   client: z.string().optional(),
   freelancer: z.string().optional(),
   tag: z.string().optional(),
+  /** Keyword search across title + description (issue #62). */
+  q: z.string().trim().min(1).max(200).optional(),
+  /** Ordering; the default is newest-first (issue #62). */
+  sort: z.enum(["newest", "oldest", "amount_desc", "amount_asc"]).optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+});
+
+export const createProposalSchema = z.object({
+  coverLetter: z.string().min(5).max(3000).optional(),
+  proposedRate: amountUsdcSchema.optional(),
+});
+
+export const createDeliverableSchema = z.object({
+  fileName: z.string().min(1).max(255),
+  fileUrl: z.string().min(1),
+  fileSize: z.number().int().nonnegative().optional(),
+  fileType: z.string().max(100).optional(),
+  description: z.string().max(2000).optional(),
 });
 

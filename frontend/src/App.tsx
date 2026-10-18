@@ -10,6 +10,7 @@
  *   /jobs/:id      → JobDetail (milestone tracker, release + dispute)
  *   /jobs/:id/receipt → Receipt (printable/exportable record)
  *   /profile/:addr → Profile (reputation score)
+ *   *              → NotFound (catch-all for unknown paths, #29)
  */
 
 import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
@@ -24,6 +25,7 @@ import JobDetail from "./pages/JobDetail";
 import Receipt from "./pages/Receipt";
 import Profile from "./pages/Profile";
 import FreelancerDirectory from "./pages/FreelancerDirectory";
+import NotFound from "./pages/NotFound";
 
 function Nav() {
   const { publicKey, connecting, connect, disconnect } = useWallet();
@@ -65,6 +67,9 @@ export default function App() {
           <Route path="/jobs/:id" element={<JobDetail />} />
           <Route path="/jobs/:id/receipt" element={<Receipt />} />
           <Route path="/profile/:address" element={<Profile />} />
+          {/* Last route: React Router picks the most specific match, so this
+              only renders when nothing above matched (issue #29). */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </WalletProvider>

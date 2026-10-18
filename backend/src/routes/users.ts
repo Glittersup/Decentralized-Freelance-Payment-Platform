@@ -323,6 +323,22 @@ usersRouter.get("/:address", async (req, res, next) => {
   }
 });
 
+// GET /api/users/me — the authenticated user's own profile (#67)
+//
+// Registered before `/:address`, otherwise Express would match "me" as an
+// address. The public `/:address` route intentionally returns the same row.
+usersRouter.get("/me", requireAuth, async (_req, res, next) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { stellarAddress: res.locals.stellarAddress },
+    });
+    if (!user) throw new AppError(404, "User not found");
+    res.json(user);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PUT /api/users/me
 export const updateSchema = z.object({
   displayName: z.string().max(80).optional(),
