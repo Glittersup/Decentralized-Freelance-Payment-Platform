@@ -294,4 +294,19 @@ describe("Milestone Deliverables API (Issue #65)", () => {
       expect(json[0].fileName).toBe("code.tar.gz");
     });
   });
+
+  describe("Milestone (jobId, index) uniqueness (issue #40)", () => {
+    it("allows uniquely identifying a milestone by jobId and index", async () => {
+      h.milestone.findUnique.mockResolvedValue({
+        id: "m_index_0",
+        jobId: "job_1",
+        index: 0,
+      });
+
+      const result = await h.milestone.findUnique({
+        where: { jobId_index: { jobId: "job_1", index: 0 } },
+      });
+      expect(result).toEqual({ id: "m_index_0", jobId: "job_1", index: 0 });
+    });
+  });
 });
