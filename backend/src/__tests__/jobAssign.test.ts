@@ -41,8 +41,11 @@ describe("assignJobSchema", () => {
       }).success,
     ).toBe(false);
     // Bad checksum
+    const badChecksum = CLIENT.endsWith("A")
+      ? CLIENT.slice(0, -1) + "B"
+      : CLIENT.slice(0, -1) + "A";
     expect(
-      assignJobSchema.safeParse({ freelancerAddress: CLIENT.slice(0, -1) + "A" }).success,
+      assignJobSchema.safeParse({ freelancerAddress: badChecksum }).success,
     ).toBe(false);
     // Missing field
     expect(assignJobSchema.safeParse({}).success).toBe(false);

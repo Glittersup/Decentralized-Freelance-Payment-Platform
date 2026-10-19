@@ -606,14 +606,20 @@ async function notifyParticipants(
   }
 }
 
-async function handleCreated(escrowId: bigint | null, store: IndexerStore): Promise<void> {
+export async function handleCreated(escrowId: bigint | null, store: IndexerStore): Promise<void> {
   if (escrowId === null) return;
-  await store.job.updateMany({ where: { escrowId }, data: { status: "CREATED" } });
+  const result = await store.job.updateMany({ where: { escrowId }, data: { status: "CREATED" } });
+  if (result.count === 0) {
+    throw new Error(`unlinked escrow: no job found for escrow id ${escrowId}`);
+  }
 }
 
-async function handleFunded(escrowId: bigint | null, store: IndexerStore): Promise<void> {
+export async function handleFunded(escrowId: bigint | null, store: IndexerStore): Promise<void> {
   if (escrowId === null) return;
-  await store.job.updateMany({ where: { escrowId }, data: { status: "ACTIVE" } });
+  const result = await store.job.updateMany({ where: { escrowId }, data: { status: "ACTIVE" } });
+  if (result.count === 0) {
+    throw new Error(`unlinked escrow: no job found for escrow id ${escrowId}`);
+  }
   await notifyParticipants(escrowId, "FUNDED", "Escrow Funded", "Escrow has been funded.", store.job);
 }
 

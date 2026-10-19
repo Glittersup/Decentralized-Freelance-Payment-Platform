@@ -13,6 +13,8 @@ import {
   applyRatedEvent,
   buildChainEvent,
   dispatchEvent,
+  handleCreated,
+  handleFunded,
   handleDisputeOpened,
   handleMilestoneReleased,
   handleRaised,
@@ -595,6 +597,118 @@ describe("processContractEvents", () => {
     expect(dispatch).toHaveBeenCalledTimes(2);
     expect(onError).toHaveBeenCalledTimes(1);
     expect(next).toBe(11);
+  });
+});
+
+describe("unlinked escrow events (issue #38)", () => {
+  it("throws an error when handleCreated receives an unlinked escrow id", async () => {
+    const store = {
+      job: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    } as unknown as IndexerStore;
+
+    await expect(handleCreated(999n, store)).rejects.toThrow(
+      /unlinked escrow: no job found for escrow id 999/,
+    );
+  });
+
+  it("throws an error when handleFunded receives an unlinked escrow id", async () => {
+    const store = {
+      job: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    } as unknown as IndexerStore;
+
+    await expect(handleFunded(999n, store)).rejects.toThrow(
+      /unlinked escrow: no job found for escrow id 999/,
+    );
+  });
+
+  it("updates job status to CREATED and ACTIVE when escrow is linked", async () => {
+    const updatedJobs: Array<{ where: any; data: any }> = [];
+    const store = {
+      job: {
+        updateMany: vi.fn(async ({ where, data }) => {
+          updatedJobs.push({ where, data });
+          return { count: 1 };
+        }),
+      },
+    } as unknown as IndexerStore;
+
+    await handleCreated(7n, store);
+    expect(updatedJobs).toContainEqual({
+      where: { escrowId: 7n },
+      data: { status: "CREATED" },
+    });
+
+    await handleFunded(7n, store);
+    expect(updatedJobs).toContainEqual({
+      where: { escrowId: 7n },
+      data: { status: "ACTIVE" },
+    });
+  });
+
+  it("records dead letter when event arrives before escrow is linked, and succeeds when retried after link", async () => {
+    // 1. Event arrives before escrow is linked:
+    const event = makeEvent("funded", { escrow_id: nativeToScVal(42n, { type: "u64" }) }, 15);
+    const source = { getEvents: vi.fn(async () => ({ events: [event], latestLedger: 15 })) };
+    let cursorValue = 14;
+    const cursor = {
+      get: async () => cursorValue,
+      set: async (ledger: number) => {
+        cursorValue = ledger;
+      },
+    };
+
+    let isLinked = false;
+    let jobStatus = "PENDING";
+    const store: IndexerStore = {
+      job: {
+        findUnique: vi.fn(async () => null),
+        update: vi.fn(async () => ({})),
+        updateMany: vi.fn(async ({ where, data }: any) => {
+          if (isLinked && where.escrowId === 42n) {
+            jobStatus = data.status;
+            return { count: 1 };
+          }
+          return { count: 0 };
+        }),
+      } as any,
+      milestone: { update: vi.fn(), updateMany: vi.fn() } as any,
+      dispute: { updateMany: vi.fn(), upsert: vi.fn() } as any,
+      user: { upsert: vi.fn() } as any,
+      rating: { upsert: vi.fn() } as any,
+    };
+
+    const deadLetters: Array<{ event: ContractEventLike; error: unknown }> = [];
+    const onError = vi.fn(async (evt, err) => {
+      deadLetters.push({ event: evt, error: err });
+    });
+
+    // Run when not yet linked:
+    await processContractEvents(
+      source,
+      cursor,
+      [CONTRACT],
+      (evt) => dispatchEvent(evt, store),
+      onError,
+    );
+
+    // Event was recorded to dead letter, NOT silently discarded:
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(deadLetters).toHaveLength(1);
+    expect(String(deadLetters[0].error)).toMatch(/unlinked escrow: no job found for escrow id 42/);
+    expect(jobStatus).toBe("PENDING");
+
+    // 2. Now the escrow is linked (e.g. through /api/escrow/sync):
+    isLinked = true;
+
+    // 3. Retry event:
+    await dispatchEvent(event, store);
+
+    // Job is now updated to ACTIVE:
+    expect(jobStatus).toBe("ACTIVE");
   });
 });
 

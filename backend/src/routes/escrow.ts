@@ -400,6 +400,12 @@ escrowRouter.post("/sync/:jobId", requireAuth, validate(syncSchema), async (req,
       where: { id: job.id },
       data: { escrowId: BigInt(escrowId), status: "FUNDED" },
     });
+    // If events arrived before the job was linked, reconcile any dead letters recorded for it
+    await prisma.indexerDeadLetter
+      ?.deleteMany({
+        where: { error: { contains: `escrow id ${escrowId}` } },
+      })
+      .catch(() => {});
     res.json(updated);
   } catch (err) {
     next(err);
