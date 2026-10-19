@@ -350,6 +350,25 @@ export function useEscrow() {
   );
 
   /**
+   * The client reclaims an `Active` escrow that has passed its safety expiry.
+   *
+   * `escrow.reclaim_expired(escrow_id)` requires the client's auth on-chain and
+   * rejects the call while the escrow is not `Active` (`InvalidStatus`) or before
+   * the expiry (`NotExpired`). On success the escrow moves to `Refunded` and any
+   * unreleased funds return to the client — earlier partial releases are not
+   * clawed back.
+   */
+  const reclaimExpired = useCallback(
+    (escrowId: bigint) =>
+      run("reclaim", `${escrowId}`, (pk) =>
+        submit(pk, CONTRACT_ADDRESSES.escrow, "reclaim_expired", [
+          scU64(escrowId),
+        ], "reclaim expired escrow"),
+      ),
+    [run, submit],
+  );
+
+  /**
    * Rate the counterparty once the escrow is completed.
    *
    * `reputation.submit(rater, ratee, escrow_id, score)` verifies on-chain that
@@ -413,6 +432,7 @@ export function useEscrow() {
     releaseMilestone,
     openDispute,
     reclaimDisputed,
+    reclaimExpired,
     submitRating,
     getEscrow,
     getDisputeDeadline,
