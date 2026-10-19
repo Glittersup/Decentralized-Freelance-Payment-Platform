@@ -18,13 +18,7 @@
 
 import { Router } from "express";
 import { z } from "zod";
-import {
-  Contract,
-  Networks,
-  SorobanRpc,
-  TransactionBuilder,
-  BASE_FEE,
-} from "@stellar/stellar-sdk";
+import { Contract } from "@stellar/stellar-sdk";
 import { config } from "../config";
 import { buildCreateArgs, buildUpdateMilestonesArgs } from "../lib/escrowArgs";
 import {
@@ -35,7 +29,7 @@ import {
 } from "../lib/scval";
 import { formatAmount, getAsset, sumAmounts, toBaseUnits, UnknownAssetError } from "../lib/assets";
 import { buildEscrowReceipt } from "../lib/receipt";
-import { friendlyContractError } from "../lib/contractErrors";
+import { buildTx } from "../lib/soroban";
 import { isValidStellarAddress } from "../lib/stellarAddress";
 import { prisma } from "../db";
 import { requireAuth } from "../middleware/auth";
@@ -43,10 +37,6 @@ import { validate } from "../middleware/validate";
 import { AppError } from "../middleware/errorHandler";
 
 export const escrowRouter = Router();
-
-const server = new SorobanRpc.Server(config.SOROBAN_RPC_URL);
-const networkPassphrase =
-  config.STELLAR_NETWORK === "mainnet" ? Networks.PUBLIC : Networks.TESTNET;
 
 /**
  * An on-chain escrow id: the `u64` the escrow contract assigns in `next_id`,
@@ -62,22 +52,6 @@ const networkPassphrase =
  * strictly positive id would 400 the first escrow the contract ever creates.
  */
 const escrowIdSchema = z.number().int().nonnegative();
-
-async function buildTx(
-  sourceAddress: string,
-  operation: Parameters<TransactionBuilder["addOperation"]>[0],
-): Promise<string> {
-  const account = await server.getAccount(sourceAddress);
-  const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase })
-    .addOperation(operation)
-    .setTimeout(30)
-    .build();
-  const simResult = await server.simulateTransaction(tx);
-  // A contract rejection (`Error(Contract, #N)`) is a caller mistake, not an
-  // internal failure — answer with the named error rather than a host string.
-  if ("error" in simResult) throw new AppError(400, friendlyContractError(simResult.error));
-  return SorobanRpc.assembleTransaction(tx, simResult).build().toXDR();
-}
 
 /** Resolve a job's asset, turning an unknown symbol into a 400. */
 function assetForJob(assetSymbol: string) {

@@ -36,23 +36,17 @@
 
 import { Router } from "express";
 import { z } from "zod";
-import {
-  Contract,
-  Networks,
-  SorobanRpc,
-  TransactionBuilder,
-  BASE_FEE,
-  xdr,
-} from "@stellar/stellar-sdk";
+import { Contract } from "@stellar/stellar-sdk";
 import type { Dispute, Job, User } from "@prisma/client";
 import { config } from "../config";
 import { prisma } from "../db";
+import { getAsset, toBaseUnits } from "../lib/assets";
 import { buildArbitrateArgs, buildOpenDisputeArgs, buildRaiseArgs } from "../lib/scval";
 import {
   DISPUTE_ERROR_MESSAGES,
   ESCROW_ERROR_MESSAGES,
-  friendlyContractError,
 } from "../lib/contractErrors";
+import { buildTx } from "../lib/soroban";
 import { isListed, parseList } from "../lib/access";
 import { requireAuth } from "../middleware/auth";
 import { validate } from "../middleware/validate";
@@ -61,30 +55,19 @@ import { notifyDisputeOpened } from "../lib/notifications";
 
 export const disputesRouter = Router();
 
-const server = new SorobanRpc.Server(config.SOROBAN_RPC_URL);
-const networkPassphrase =
-  config.STELLAR_NETWORK === "mainnet" ? Networks.PUBLIC : Networks.TESTNET;
-
 /**
- * Build an unsigned transaction for the caller to sign.
+ * Resolve the job's asset, turning an unknown symbol into a 400.
  *
- * `messages` is the error map of the contract being called: a contract error is
- * a caller mistake (wrong state, not a party), not an internal failure, so it is
- * answered as a named 400 rather than a raw host string.
+ * The escrow is asset-agnostic: `arbitrate` takes shares in the token's base
+ * units, so the decimals have to come from the job's asset registry entry, not
+ * from a constant (issue #35).
  */
-async function buildTx(
-  sourceAddress: string,
-  operation: xdr.Operation,
-  messages: Record<number, string>,
-): Promise<string> {
-  const account = await server.getAccount(sourceAddress);
-  const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase })
-    .addOperation(operation)
-    .setTimeout(30)
-    .build();
-  const sim = await server.simulateTransaction(tx);
-  if ("error" in sim) throw new AppError(400, friendlyContractError(sim.error, messages));
-  return SorobanRpc.assembleTransaction(tx, sim).build().toXDR();
+function assetForJob(assetSymbol: string) {
+  try {
+    return getAsset(assetSymbol);
+  } catch {
+    throw new AppError(400, `Unknown asset: ${assetSymbol}`);
+  }
 }
 
 /** A dispute row plus the parties a route has to authorize against. */
@@ -150,7 +133,7 @@ disputesRouter.post("/", requireAuth, validate(raiseSchema), async (req, res, ne
     const xdr = await buildTx(
       addr,
       escrowContract.call("open_dispute", ...buildOpenDisputeArgs(job.escrowId, addr)),
-      ESCROW_ERROR_MESSAGES,
+      { messages: ESCROW_ERROR_MESSAGES },
     );
 
     // Persist dispute record
@@ -213,7 +196,7 @@ disputesRouter.post("/:id/raise", requireAuth, async (req, res, next) => {
           dispute.reason,
         ),
       ),
-      DISPUTE_ERROR_MESSAGES,
+      { messages: DISPUTE_ERROR_MESSAGES },
     );
 
     res.json({ xdr });
@@ -309,7 +292,10 @@ disputesRouter.post("/:id/resolve", requireAuth, validate(resolveSchema), async 
       );
     }
 
-    // Build dispute.arbitrate tx
+    // Build dispute.arbitrate tx. The shares are whole units of the job's
+    // asset, so they are converted at that asset's decimals — USDC and XLM are
+    // 7-decimal, but hardcoding 1e7 would mis-encode any asset that is not.
+    const asset = assetForJob(dispute.job.asset);
     const disputeContract = new Contract(config.DISPUTE_CONTRACT_ID);
     const xdr = await buildTx(
       res.locals.stellarAddress,
@@ -317,11 +303,11 @@ disputesRouter.post("/:id/resolve", requireAuth, validate(resolveSchema), async 
         "arbitrate",
         ...buildArbitrateArgs(
           dispute.onChainId,
-          BigInt(Math.round(clientShare * 1e7)),
-          BigInt(Math.round(freelancerShare * 1e7)),
+          toBaseUnits(clientShare, asset.decimals),
+          toBaseUnits(freelancerShare, asset.decimals),
         ),
       ),
-      DISPUTE_ERROR_MESSAGES,
+      { messages: DISPUTE_ERROR_MESSAGES },
     );
 
     // Update DB (final status set by indexer after tx confirmed)
