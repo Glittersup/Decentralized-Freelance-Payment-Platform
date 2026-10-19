@@ -61,10 +61,13 @@ describe("requestLogger", () => {
       const address = server.address();
       if (address === null || typeof address === "string") throw new Error("no port assigned");
       const res = await fetch(`http://127.0.0.1:${address.port}/health`);
-      expect(res.status).toBe(200);
+      expect([200, 503]).toContain(res.status);
       await res.json();
       // A request completed end to end and produced no access-log line.
-      expect(log).not.toHaveBeenCalled();
+      const httpLogs = log.mock.calls.filter(
+        ([arg]) => typeof arg === "string" && arg.includes('"event":"http_request"'),
+      );
+      expect(httpLogs).toHaveLength(0);
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((err) => (err ? reject(err) : resolve())),

@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import type { Server } from "node:http";
 import { Keypair } from "@stellar/stellar-sdk";
 import { isValidStellarAddress } from "../lib/stellarAddress";
 import { createJobSchema } from "../lib/schemas";
@@ -11,11 +12,22 @@ import { MAX_JOB_TAGS, SKILL_TAG_SLUGS } from "../lib/tags";
 
 // Two checksum-valid account ids: Circle's Stellar testnet USDC issuer and the
 // admin of the deployments in deployments/testnet.json.
+const USDC_ISSUER = "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5";
+const DEPLOY_ADMIN = "GBPLJHDI6RPLS4EEJJTM7EVEV3UNTXLFAACWA63QSTHGLWH5RO3LQ75B";
 
 // Health endpoint operational checks (issue #93)
 
 describe("GET /health", () => {
   it("returns 200 with status ok when DB and indexer are healthy", async () => {
+    const { prisma } = await import("../db");
+    vi.spyOn(prisma, "$queryRaw").mockResolvedValueOnce([{ "?column?": 1 }]);
+    vi.spyOn(prisma.indexerCursor, "findUnique").mockResolvedValue({
+      id: "main",
+      lastLedger: 100,
+      updatedAt: new Date(),
+    } as any);
+
+    let server!: Server;
     const { createApp } = await import("../app");
     const app = createApp();
     await new Promise<void>((resolve) => {
@@ -27,17 +39,18 @@ describe("GET /health", () => {
     
     const res = await fetch(`${baseUrl}/health`);
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { status: string; db: boolean; indexer: boolean };
     expect(body.status).toBe("ok");
     expect(body.db).toBe(true);
     expect(body.indexer).toBe(true);
-    await server.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
   it("returns 503 when database is unreachable", async () => {
-    // Mock prisma.$queryRaw to throw when DB is down
-    vi.stubEnv("DATABASE_URL", "postgresql://invalid:invalid@host:5432/nonexistent");
+    const { prisma } = await import("../db");
+    vi.spyOn(prisma, "$queryRaw").mockRejectedValueOnce(new Error("Connection refused"));
     
+    let server!: Server;
     const { createApp } = await import("../app");
     const app = createApp();
     await new Promise<void>((resolve) => {
@@ -49,10 +62,11 @@ describe("GET /health", () => {
     
     const res = await fetch(`${baseUrl}/health`);
     expect(res.status).toBe(503);
-    const body = await res.json();
+    const body = (await res.json()) as { status: string; db: boolean; indexer: boolean };
     expect(body.status).toBe("unhealthy");
     expect(body.db).toBe(false);
-    await server.close();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    vi.unstubAllEnvs();
   });
 });
 

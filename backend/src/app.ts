@@ -5,6 +5,7 @@ import rateLimit from "express-rate-limit";
 import swaggerUi from "swagger-ui-express";
 
 import { config } from "./config";
+import { prisma } from "./db";
 import { docsEnabled, openApiDocument } from "./openapi";
 import { isAllowedOrigin, parseList } from "./lib/access";
 import { jsonReplacer } from "./lib/json";
@@ -101,8 +102,8 @@ export function createApp() {
   if (!dbOk || !indexerOk) {
     return res.status(503).json({
       status: "unhealthy",
-      db: !dbOk,
-      indexer: !indexerOk,
+      db: dbOk,
+      indexer: indexerOk,
     });
   }
 

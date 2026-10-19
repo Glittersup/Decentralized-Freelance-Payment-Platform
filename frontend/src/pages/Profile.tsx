@@ -26,6 +26,7 @@ import Layout from "../components/Layout";
 import AddressField from "../components/AddressField";
 import StatusBadge from "../components/StatusBadge";
 import { useEscrow, type ReputationView } from "../hooks/useEscrow";
+import { useWallet } from "../hooks/wallet-context";
 import {
   asReadError,
   describeReadFailure,
@@ -61,6 +62,19 @@ export default function Profile() {
   const [ratings, setRatings] = useState<ReceivedRatingApi[] | null>(null);
   const [transactions, setTransactions] = useState<TransactionApi[] | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  // Notification preferences (issue #67): only the profile's owner may see or
+  // edit them, and they live off-chain on the `User` row.
+  const { publicKey, signMessage } = useWallet();
+  const isOwner = Boolean(publicKey && address && publicKey === address);
+  const [email, setEmail] = useState("");
+  const [notifyOnDispute, setNotifyOnDispute] = useState(true);
+  const [notifyOnRelease, setNotifyOnRelease] = useState(true);
+  const [notifyOnRefund, setNotifyOnRefund] = useState(true);
+  const [prefStatus, setPrefStatus] = useState<
+    "idle" | "loading" | "saving" | "saved" | "error"
+  >("idle");
+  const [prefMessage, setPrefMessage] = useState<string | null>(null);
 
   // The read is public, so this runs before a wallet is connected (issue #108).
   useEffect(() => {
