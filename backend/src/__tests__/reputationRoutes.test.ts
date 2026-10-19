@@ -287,6 +287,22 @@ describe("GET /api/reputation/:address — weighted aggregate", () => {
     expect(res.body.totalRatings).toBe(2);
   });
 
+  it("matches the contract's weighted example (5 on 100 + 1 on 900 = 1.4)", async () => {
+    // The exact fixture `aggregate_weights_ratings_by_escrow_amount` asserts in
+    // contracts/reputation/src/test.rs: 5*100 + 1*900 = 1_400 over weight 1_000.
+    h.rating.findMany.mockResolvedValue([
+      rating(5, "user_a", "100"),
+      rating(1, "user_b", "900"),
+    ]);
+
+    const res = await getAggregate(RATEE);
+
+    expect(res.body.totalScore).toBe("14000000000");
+    expect(res.body.weight).toBe("10000000000");
+    expect(res.body.averageScore).toBe(1.4);
+    expect(res.body.count).toBe(2);
+  });
+
   it("counts only the first rating from a given rater (anti-spam)", async () => {
     // The same rater's later rating on a much larger escrow is stored but does
     // not move the aggregate, exactly as `RatingCounted` does on chain.
