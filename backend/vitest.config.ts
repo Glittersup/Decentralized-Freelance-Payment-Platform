@@ -11,7 +11,6 @@ export default defineConfig({
       NODE_ENV: "test",
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test",
       JWT_SECRET: "test_secret_that_is_at_least_32_chars_long!",
-      HORIZON_URL: "https://horizon-testnet.stellar.org",
       SOROBAN_RPC_URL: "https://soroban-testnet.stellar.org",
     },
   },

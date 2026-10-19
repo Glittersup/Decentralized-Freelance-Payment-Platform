@@ -187,7 +187,6 @@ so migrations apply on boot. Attach a PostgreSQL instance and set:
 | `JWT_SECRET` | **at least 32 characters** — the config schema exits the process otherwise |
 | `NODE_ENV` | `production` |
 | `STELLAR_NETWORK` | `testnet` |
-| `HORIZON_URL` | `https://horizon-testnet.stellar.org` |
 | `SOROBAN_RPC_URL` | `https://soroban-testnet.stellar.org` |
 | `ESCROW_CONTRACT_ID` / `DISPUTE_CONTRACT_ID` / `REPUTATION_CONTRACT_ID` | from `deployments/testnet.json`. `render.yaml` does **not** set these — put them in the dashboard. Without them the indexer logs "No contract IDs configured" and does nothing; when they no longer match the record the API logs `[config] Contract IDs do not match the latest deploy` |
 | `XLM_CONTRACT_ID` | the testnet XLM SAC (stable across contract deploys, so it is committed in `render.yaml`) |

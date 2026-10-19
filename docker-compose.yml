@@ -53,7 +53,6 @@ services:
       # Dev-only placeholder. Must be >= 32 chars (enforced by the config schema).
       JWT_SECRET: dev-only-insecure-secret-change-me-please
       STELLAR_NETWORK: testnet
-      HORIZON_URL: https://horizon-testnet.stellar.org
       SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
       INDEXER_POLL_INTERVAL_MS: 5000
     ports:

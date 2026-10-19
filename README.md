@@ -415,7 +415,6 @@ not just a restart.
 | `JWT_SECRET` | ✅ | **At least 32 characters** — the config schema exits the process otherwise |
 | `NODE_ENV` | ✅ | `development` \| `production` \| `test` |
 | `STELLAR_NETWORK` | ✅ | `testnet` \| `mainnet` |
-| `HORIZON_URL` | ✅ | `https://horizon-testnet.stellar.org` |
 | `SOROBAN_RPC_URL` | ✅ | `https://soroban-testnet.stellar.org` |
 | `ESCROW_CONTRACT_ID` | ✅ | Without it the indexer logs `No contract IDs configured` and does nothing |
 | `DISPUTE_CONTRACT_ID` | ✅ | As above |

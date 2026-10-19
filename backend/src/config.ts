@@ -6,7 +6,7 @@ const schema = z.object({
   DATABASE_URL: z.string(),
   JWT_SECRET: z.string().min(32),
   STELLAR_NETWORK: z.enum(["testnet", "mainnet"]).default("testnet"),
-  HORIZON_URL: z.string().url(),
+  HORIZON_URL: z.string().url().optional(),
   SOROBAN_RPC_URL: z.string().url(),
   ESCROW_CONTRACT_ID: z.string().default(""),
   DISPUTE_CONTRACT_ID: z.string().default(""),

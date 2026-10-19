@@ -55,8 +55,6 @@ services:
 
       - key: STELLAR_NETWORK
         value: testnet
-      - key: HORIZON_URL
-        value: https://horizon-testnet.stellar.org
       - key: SOROBAN_RPC_URL
         value: https://soroban-testnet.stellar.org
 
