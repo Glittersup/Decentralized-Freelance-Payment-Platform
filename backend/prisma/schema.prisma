@@ -115,6 +115,7 @@ model Milestone {
 
   // Every `include: { milestones: true }` (job list/detail, escrow routes,
   // indexer milestone-release handling) joins on jobId.
+  @@unique([jobId, index])
   @@index([jobId])
 }
 
