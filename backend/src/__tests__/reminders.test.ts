@@ -27,7 +27,7 @@ function job(overrides: Partial<ReminderJob> = {}): ReminderJob {
       {
         index: 0,
         description: "Design",
-        amountUsdc: "1.5",
+        amount: "1.5",
         status: "PENDING",
         deadline: at(12),
       },
@@ -81,7 +81,7 @@ describe("buildMilestoneReminders", () => {
   it("does not remind anyone about a released milestone", () => {
     // The money is already out; there is nothing left to act on.
     const released = job({
-      milestones: [{ index: 0, description: null, amountUsdc: "1", status: "RELEASED", deadline: at(-5) }],
+      milestones: [{ index: 0, description: null, amount: "1", status: "RELEASED", deadline: at(-5) }],
     });
 
     expect(buildMilestoneReminders([released], CLIENT, NOW)).toEqual([]);
@@ -89,7 +89,7 @@ describe("buildMilestoneReminders", () => {
 
   it("ignores milestones with no deadline", () => {
     const noDeadline = job({
-      milestones: [{ index: 0, description: null, amountUsdc: "1", status: "PENDING", deadline: null }],
+      milestones: [{ index: 0, description: null, amount: "1", status: "PENDING", deadline: null }],
     });
 
     expect(buildMilestoneReminders([noDeadline], CLIENT, NOW)).toEqual([]);
@@ -104,18 +104,18 @@ describe("buildMilestoneReminders", () => {
       job({
         id: "job-a",
         milestones: [
-          { index: 1, description: null, amountUsdc: "1", status: "PENDING", deadline: at(30) },
-          { index: 0, description: null, amountUsdc: "1", status: "PENDING", deadline: at(-2) },
+          { index: 1, description: null, amount: "1", status: "PENDING", deadline: at(30) },
+          { index: 0, description: null, amount: "1", status: "PENDING", deadline: at(-2) },
         ],
       }),
       job({
         id: "job-b",
-        milestones: [{ index: 0, description: null, amountUsdc: "1", status: "PENDING", deadline: at(4) }],
+        milestones: [{ index: 0, description: null, amount: "1", status: "PENDING", deadline: at(4) }],
       }),
       // Outside the horizon: not a reminder at all.
       job({
         id: "job-c",
-        milestones: [{ index: 0, description: null, amountUsdc: "1", status: "PENDING", deadline: at(200) }],
+        milestones: [{ index: 0, description: null, amount: "1", status: "PENDING", deadline: at(200) }],
       }),
     ];
 
@@ -131,7 +131,7 @@ describe("buildMilestoneReminders", () => {
   it("honours a caller-supplied horizon", () => {
     const jobs = [
       job({
-        milestones: [{ index: 0, description: null, amountUsdc: "1", status: "PENDING", deadline: at(100) }],
+        milestones: [{ index: 0, description: null, amount: "1", status: "PENDING", deadline: at(100) }],
       }),
     ];
 

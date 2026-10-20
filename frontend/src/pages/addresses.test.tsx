@@ -125,7 +125,7 @@ describe("addresses are copyable everywhere they are shown", () => {
         escrowId: 7,
         title: "t",
         status: "ACTIVE",
-        totalAmountUsdc: 1,
+        totalAmount: 1,
         client: { stellarAddress: FREELANCER },
       },
     ]);

@@ -214,7 +214,7 @@ usersRouter.get("/", getFreelancersHandler);
 // The consolidated history a single action-at-a-time UI never had (issue #72).
 // A user's history is the indexed events on the escrows of the jobs they took
 // part in, newest ledger first. The event's `amount` is returned in whole units
-// of the job's asset (like `Job.totalAmountUsdc`) rather than raw base units, and
+// of the job's asset (like `Job.totalAmount`) rather than raw base units, and
 // `txHash` is what the client turns into an explorer link.
 usersRouter.get("/:address/transactions", async (req, res, next) => {
   try {

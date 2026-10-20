@@ -860,7 +860,7 @@ interface FakeMilestone {
   status: "PENDING" | "RELEASED";
   releasedAt: Date | null;
   /** Human units, like the Prisma `Decimal` columns. */
-  amountUsdc: string;
+  amount: string;
   releasedAmount: string;
 }
 
@@ -878,7 +878,7 @@ interface FakeJob {
   escrowId: bigint;
   asset: string;
   status: string;
-  totalAmountUsdc: string;
+  totalAmount: string;
   milestones: FakeMilestone[];
   disputes: FakeDispute[];
 }
@@ -889,14 +889,14 @@ function fakeJob(overrides: Partial<FakeJob> = {}): FakeJob {
     escrowId: 7n,
     asset: "USDC",
     status: "CREATED",
-    totalAmountUsdc: "1",
+    totalAmount: "1",
     milestones: [
       {
         id: "m0",
         index: 0,
         status: "PENDING",
         releasedAt: null,
-        amountUsdc: "0.5",
+        amount: "0.5",
         releasedAmount: "0",
       },
       {
@@ -904,7 +904,7 @@ function fakeJob(overrides: Partial<FakeJob> = {}): FakeJob {
         index: 1,
         status: "PENDING",
         releasedAt: null,
-        amountUsdc: "0.5",
+        amount: "0.5",
         releasedAmount: "0",
       },
     ],
@@ -1154,7 +1154,7 @@ describe("dispatchEvent", () => {
     // The event carries only count/total_amount, so the per-milestone rows stay
     // as the API wrote them; the total cannot drift even if `PUT /milestones`
     // never follows.
-    const jobs = [fakeJob({ asset: "XLM", totalAmountUsdc: "1" })];
+    const jobs = [fakeJob({ asset: "XLM", totalAmount: "1" })];
 
     await dispatchEvent(
       makeTopicEvent("milestones_updated", 7n, {
@@ -1164,12 +1164,12 @@ describe("dispatchEvent", () => {
       makeStore(jobs),
     );
 
-    expect(jobs[0].totalAmountUsdc).toBe("2.5");
+    expect(jobs[0].totalAmount).toBe("2.5");
     expect(jobs[0].milestones.map((m) => m.id)).toEqual(["m0", "m1"]);
   });
 
   it("ignores a milestones_updated total of zero", async () => {
-    const jobs = [fakeJob({ totalAmountUsdc: "1" })];
+    const jobs = [fakeJob({ totalAmount: "1" })];
 
     await dispatchEvent(
       makeTopicEvent("milestones_updated", 7n, {
@@ -1179,7 +1179,7 @@ describe("dispatchEvent", () => {
       makeStore(jobs),
     );
 
-    expect(jobs[0].totalAmountUsdc).toBe("1");
+    expect(jobs[0].totalAmount).toBe("1");
   });
 
   it("records a raised dispute once, even when the event is replayed", async () => {
@@ -1579,7 +1579,7 @@ class FakeMilestoneStore implements MilestoneReleaseStores {
       jobId: string;
       index: number;
       status: MilestoneStatus;
-      amountUsdc: string;
+      amount: string;
       releasedAmount: string;
       releasedAt: Date | null;
     }
@@ -1589,7 +1589,7 @@ class FakeMilestoneStore implements MilestoneReleaseStores {
   /** Seed a job and its milestones; returns the job id. */
   seed(
     escrowId: bigint,
-    specs: Array<{ amountUsdc: string; releasedAmount?: string; status?: MilestoneStatus }>,
+    specs: Array<{ amount: string; releasedAmount?: string; status?: MilestoneStatus }>,
     asset = "USDC",
   ): string {
     const id = `job-${++this.seq}`;
@@ -1600,7 +1600,7 @@ class FakeMilestoneStore implements MilestoneReleaseStores {
         jobId: id,
         index,
         status: spec.status ?? "PENDING",
-        amountUsdc: spec.amountUsdc,
+        amount: spec.amount,
         releasedAmount: spec.releasedAmount ?? "0",
         releasedAt: null,
       });
@@ -1631,7 +1631,7 @@ class FakeMilestoneStore implements MilestoneReleaseStores {
             id: m.id,
             index: m.index,
             status: m.status,
-            amountUsdc: m.amountUsdc,
+            amount: m.amount,
             releasedAmount: m.releasedAmount,
           })),
       };
@@ -1687,7 +1687,7 @@ describe("milestone_released events (issue #25)", () => {
 
   it("does not mark a milestone RELEASED when only part of it has been paid", async () => {
     const db = new FakeMilestoneStore();
-    const jobId = db.seed(ESCROW, [{ amountUsdc: "10" }]);
+    const jobId = db.seed(ESCROW, [{ amount: "10" }]);
 
     await handleMilestoneReleased(released(0, 40_000_000n), db);
 
@@ -1702,7 +1702,7 @@ describe("milestone_released events (issue #25)", () => {
 
   it("completes the milestone only once the partial payments add up", async () => {
     const db = new FakeMilestoneStore();
-    const jobId = db.seed(ESCROW, [{ amountUsdc: "10" }]);
+    const jobId = db.seed(ESCROW, [{ amount: "10" }]);
 
     await handleMilestoneReleased(released(0, 40_000_000n), db);
     expect(db.milestoneRow(jobId, 0).status).toBe("PENDING");
@@ -1719,7 +1719,7 @@ describe("milestone_released events (issue #25)", () => {
 
   it("keeps the job ACTIVE while another milestone is still unpaid", async () => {
     const db = new FakeMilestoneStore();
-    const jobId = db.seed(ESCROW, [{ amountUsdc: "10" }, { amountUsdc: "10" }]);
+    const jobId = db.seed(ESCROW, [{ amount: "10" }, { amount: "10" }]);
 
     await handleMilestoneReleased(released(0, TEN), db);
 
@@ -1733,7 +1733,7 @@ describe("milestone_released events (issue #25)", () => {
     // A cursor rewind replays events; the stored running total is the source of
     // truth, so the same event cannot release an already-known partial twice.
     const db = new FakeMilestoneStore();
-    const jobId = db.seed(ESCROW, [{ amountUsdc: "10", releasedAmount: "6" }]);
+    const jobId = db.seed(ESCROW, [{ amount: "10", releasedAmount: "6" }]);
 
     await handleMilestoneReleased(released(0, 40_000_000n), db);
 

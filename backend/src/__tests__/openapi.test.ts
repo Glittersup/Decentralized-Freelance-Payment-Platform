@@ -119,8 +119,8 @@ describe("OpenAPI document", () => {
     expect(schema.required).toEqual(["title", "description", "milestones"]);
     expect(schema.properties.asset.default).toBe("USDC");
     expect(schema.properties.milestones.minItems).toBe(1);
-    // `amountUsdc` is a union of a positive number and an exact decimal string.
-    expect(schema.properties.milestones.items.properties.amountUsdc.anyOf).toHaveLength(2);
+    // `amount` is a union of a positive number and an exact decimal string.
+    expect(schema.properties.milestones.items.properties.amount.anyOf).toHaveLength(2);
   });
 
   it("serves the Swagger UI explorer at /api/docs", async () => {

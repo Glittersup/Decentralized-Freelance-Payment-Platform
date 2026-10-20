@@ -43,7 +43,7 @@ function job(overrides: Partial<JobApi> = {}): JobApi {
     title: "Job",
     status: "ACTIVE",
     asset: "XLM",
-    totalAmountUsdc: 1,
+    totalAmount: 1,
     ...overrides,
   };
 }
@@ -161,7 +161,7 @@ describe("Activity summary", () => {
     h.rates = { XLM: 2 };
     h.wallet.publicKey = WALLET;
     respondByRole({
-      asFreelancer: [job({ milestones: [{ amountUsdc: "1.5", status: "RELEASED" }] })],
+      asFreelancer: [job({ milestones: [{ amount: "1.5", status: "RELEASED" }] })],
     });
     render(<Activity />);
 
@@ -178,8 +178,8 @@ describe("Activity summary", () => {
           id: "f",
           status: "ACTIVE",
           milestones: [
-            { amountUsdc: "1.5", status: "RELEASED" },
-            { amountUsdc: "0.25", status: "PENDING" },
+            { amount: "1.5", status: "RELEASED" },
+            { amount: "0.25", status: "PENDING" },
           ],
         }),
       ],

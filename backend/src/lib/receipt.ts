@@ -20,7 +20,7 @@ import { formatAmount, formatBaseUnitsForAsset, getAsset, sumAmounts, toBaseUnit
 export interface ReceiptMilestone {
   index: number;
   description: string | null;
-  amountUsdc: unknown;
+  amount: unknown;
   status: string;
   deadline: Date | null;
   releasedAt: Date | null;
@@ -33,7 +33,7 @@ export interface ReceiptJob {
   description: string;
   status: string;
   asset: string;
-  totalAmountUsdc: unknown;
+  totalAmount: unknown;
   createdAt: Date;
   expiresAt: Date | null;
   client: { stellarAddress: string; displayName: string | null } | null;
@@ -120,10 +120,10 @@ export function buildEscrowReceipt(
   const releasedBase = sumAmounts(
     job.milestones
       .filter((milestone) => milestone.status === "RELEASED")
-      .map((milestone) => String(milestone.amountUsdc)),
+      .map((milestone) => String(milestone.amount)),
     decimals,
   );
-  const totalBase = toBaseUnits(String(job.totalAmountUsdc), decimals);
+  const totalBase = toBaseUnits(String(job.totalAmount), decimals);
   const outstandingBase = totalBase > releasedBase ? totalBase - releasedBase : 0n;
 
   return {
@@ -144,7 +144,7 @@ export function buildEscrowReceipt(
     milestones: job.milestones.map((milestone) => ({
       index: milestone.index,
       description: milestone.description,
-      amount: normalizeAmount(milestone.amountUsdc, decimals),
+      amount: normalizeAmount(milestone.amount, decimals),
       status: milestone.status,
       deadline: milestone.deadline ? milestone.deadline.toISOString() : null,
       releasedAt: milestone.releasedAt ? milestone.releasedAt.toISOString() : null,

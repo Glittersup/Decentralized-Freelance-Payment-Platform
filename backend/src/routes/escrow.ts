@@ -112,7 +112,7 @@ escrowRouter.post("/build/create", requireAuth, validate(buildCreateSchema), asy
       freelancer: freelancerAddress,
       token: tokenContractId,
       milestones: job.milestones.map((m) => ({
-        amount: toBaseUnits(m.amountUsdc.toString(), asset.decimals),
+        amount: toBaseUnits(m.amount.toString(), asset.decimals),
         deadline: BigInt(
           m.deadline ? Math.floor(m.deadline.getTime() / 1000) : expiryTimestamp,
         ),
@@ -134,7 +134,7 @@ escrowRouter.post("/build/create", requireAuth, validate(buildCreateSchema), asy
 /** A milestone being edited, in whole units (the UI's unit), deadline optional. */
 export const editableMilestoneSchema = z.object({
   description: z.string().max(200).optional(),
-  amountUsdc: z.number().positive(),
+  amount: z.number().positive(),
   deadline: z.string().datetime().optional(),
 });
 
@@ -163,7 +163,7 @@ escrowRouter.post(
       const args = buildUpdateMilestonesArgs({
         escrowId: BigInt(escrowId),
         milestones: milestones.map((m) => ({
-          amount: toBaseUnits(m.amountUsdc, asset.decimals),
+          amount: toBaseUnits(m.amount, asset.decimals),
           deadline: BigInt(m.deadline ? Math.floor(new Date(m.deadline).getTime() / 1000) : 0),
         })),
       });
@@ -209,8 +209,8 @@ escrowRouter.put(
 
       // Sum in base units (see POST /api/jobs): a float total would store
       // 0.1 + 0.2 = 0.30000000000000004 in the DECIMAL(65,30) column.
-      const totalAmountUsdc = formatAmount(
-        sumAmounts(milestones.map((m) => m.amountUsdc), asset.decimals),
+      const totalAmount = formatAmount(
+        sumAmounts(milestones.map((m) => m.amount), asset.decimals),
         asset.decimals,
       );
 
@@ -222,8 +222,8 @@ escrowRouter.put(
           data: milestones.map((m, i) => ({
             jobId: job.id,
             index: i,
-            amountUsdc: formatAmount(
-              toBaseUnits(m.amountUsdc, asset.decimals),
+            amount: formatAmount(
+              toBaseUnits(m.amount, asset.decimals),
               asset.decimals,
             ),
             description: m.description ?? `Milestone ${i + 1}`,
@@ -232,7 +232,7 @@ escrowRouter.put(
         });
         return tx.job.update({
           where: { id: job.id },
-          data: { totalAmountUsdc },
+          data: { totalAmount },
           include: { milestones: { orderBy: { index: "asc" } } },
         });
       });

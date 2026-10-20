@@ -8,7 +8,7 @@
  * - Jobs reach this client from the backend, whose contract-event indexer
  *   (`backend/src/indexer.ts`) syncs chain state into the database. A job can
  *   therefore appear here without this client having created it.
- * - `totalAmountUsdc`/`escrowId` come from Prisma and may serialize as strings.
+ * - `totalAmount`/`escrowId` come from Prisma and may serialize as strings.
  * - `authenticate` caches the JWT it gets back, per address: signing the
  *   challenge prompts the wallet, and the messaging view would otherwise prompt
  *   on every unread refresh. See the comment on the cache below.
@@ -100,7 +100,7 @@ export interface DeliverableApi {
 export interface JobMilestoneApi {
   id?: string;
   index?: number;
-  amountUsdc: string | number;
+  amount: string | number;
   description?: string | null;
   status: string;
   deadline?: string | null;
@@ -120,7 +120,7 @@ export interface JobApi {
   asset?: string;
   /** Curated skill-tag slugs (see lib/tags.ts); issue #70. */
   tags?: string[];
-  totalAmountUsdc: string | number;
+  totalAmount: string | number;
   /** ISO timestamp the off-chain record was created; used to order history. */
   createdAt?: string;
   client?: { stellarAddress: string; displayName?: string | null } | null;
@@ -253,7 +253,7 @@ export async function fetchRatingsReceived(
 /**
  * One indexed contract event, as the history endpoint returns it (issue #72).
  *
- * `amount` is already in whole units of `asset` (like `JobApi.totalAmountUsdc`),
+ * `amount` is already in whole units of `asset` (like `JobApi.totalAmount`),
  * so it is shown as-is; `txHash` is what `explorerTxUrl` turns into a link.
  */
 export interface TransactionApi {
@@ -385,7 +385,7 @@ export interface CreateJobMilestoneInput {
    * Whole units of the job asset. A decimal string is exact and preferred; a
    * number is accepted but is already a binary float by the time it arrives.
    */
-  amountUsdc: number | string;
+  amount: number | string;
   deadline?: string;
 }
 

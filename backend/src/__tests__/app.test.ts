@@ -109,7 +109,7 @@ describe("POST /api/jobs request validation", () => {
   const valid = {
     title: "Landing page redesign",
     description: "What needs to be delivered by Friday",
-    milestones: [{ amountUsdc: 1.5, description: "Milestone 1" }],
+    milestones: [{ amount: 1.5, description: "Milestone 1" }],
   };
 
   it("accepts a minimal job and defaults the asset to USDC", () => {
@@ -120,10 +120,10 @@ describe("POST /api/jobs request validation", () => {
 
   it("rejects zero and negative milestone amounts", () => {
     expect(
-      createJobSchema.safeParse({ ...valid, milestones: [{ amountUsdc: 0 }] }).success,
+      createJobSchema.safeParse({ ...valid, milestones: [{ amount: 0 }] }).success,
     ).toBe(false);
     expect(
-      createJobSchema.safeParse({ ...valid, milestones: [{ amountUsdc: -1 }] }).success,
+      createJobSchema.safeParse({ ...valid, milestones: [{ amount: -1 }] }).success,
     ).toBe(false);
   });
 
@@ -140,15 +140,15 @@ describe("POST /api/jobs request validation", () => {
     // 0.1 + 0.2 stores 0.3 rather than 0.30000000000000004.
     const parsed = createJobSchema.parse({
       ...valid,
-      milestones: [{ amountUsdc: "0.1" }, { amountUsdc: "0.2" }],
+      milestones: [{ amount: "0.1" }, { amount: "0.2" }],
     });
-    expect(parsed.milestones.map((m) => m.amountUsdc)).toEqual(["0.1", "0.2"]);
+    expect(parsed.milestones.map((m) => m.amount)).toEqual(["0.1", "0.2"]);
   });
 
   it("rejects a zero, negative, or malformed string amount", () => {
-    for (const amountUsdc of ["0", "0.0", "-1", "1e3", "abc", ""]) {
+    for (const amount of ["0", "0.0", "-1", "1e3", "abc", ""]) {
       expect(
-        createJobSchema.safeParse({ ...valid, milestones: [{ amountUsdc }] }).success,
+        createJobSchema.safeParse({ ...valid, milestones: [{ amount }] }).success,
       ).toBe(false);
     }
   });
@@ -158,7 +158,7 @@ describe("POST /api/jobs skill tags", () => {
   const valid = {
     title: "Landing page redesign",
     description: "What needs to be delivered by Friday",
-    milestones: [{ amountUsdc: 1.5 }],
+    milestones: [{ amount: 1.5 }],
   };
 
   it("defaults to no tags, so an older client keeps working", () => {

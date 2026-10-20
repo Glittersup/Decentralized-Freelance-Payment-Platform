@@ -253,7 +253,7 @@ export default function Profile() {
                   <strong>{job.title}</strong> <StatusBadge status={job.status} />
                   <br />
                   <span className="muted">
-                    {role} · Total: {String(job.totalAmountUsdc)} {job.asset ?? ""}
+                    {role} · Total: {String(job.totalAmount)} {job.asset ?? ""}
                     {job.createdAt ? ` · ${formatDate(job.createdAt)}` : ""}
                   </span>
                   <br />

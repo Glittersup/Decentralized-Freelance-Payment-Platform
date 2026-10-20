@@ -14,7 +14,7 @@ function job(overrides: Partial<ReceiptJob> = {}): ReceiptJob {
     description: "A new marketing site",
     status: "ACTIVE",
     asset: "USDC",
-    totalAmountUsdc: "2.5",
+    totalAmount: "2.5",
     createdAt: new Date("2026-01-01T00:00:00.000Z"),
     expiresAt: new Date("2026-04-01T00:00:00.000Z"),
     client: { stellarAddress: "GCLIENT", displayName: "Ada" },
@@ -23,7 +23,7 @@ function job(overrides: Partial<ReceiptJob> = {}): ReceiptJob {
       {
         index: 0,
         description: "Design",
-        amountUsdc: "1.5",
+        amount: "1.5",
         status: "RELEASED",
         deadline: new Date("2026-02-01T00:00:00.000Z"),
         releasedAt: new Date("2026-02-02T12:00:00.000Z"),
@@ -31,7 +31,7 @@ function job(overrides: Partial<ReceiptJob> = {}): ReceiptJob {
       {
         index: 1,
         description: "Build",
-        amountUsdc: "1",
+        amount: "1",
         status: "PENDING",
         deadline: new Date("2026-03-01T00:00:00.000Z"),
         releasedAt: null,
@@ -95,10 +95,10 @@ describe("buildEscrowReceipt", () => {
     const receipt = buildEscrowReceipt(
       7n,
       job({
-        totalAmountUsdc: "0.3",
+        totalAmount: "0.3",
         milestones: [
-          { index: 0, description: null, amountUsdc: "0.1", status: "RELEASED", deadline: null, releasedAt: new Date() },
-          { index: 1, description: null, amountUsdc: "0.2", status: "RELEASED", deadline: null, releasedAt: new Date() },
+          { index: 0, description: null, amount: "0.1", status: "RELEASED", deadline: null, releasedAt: new Date() },
+          { index: 1, description: null, amount: "0.2", status: "RELEASED", deadline: null, releasedAt: new Date() },
         ],
       }),
       [],
@@ -111,7 +111,7 @@ describe("buildEscrowReceipt", () => {
   it("shows nothing released on an escrow whose milestones are all pending", () => {
     const receipt = buildEscrowReceipt(
       7n,
-      job({ milestones: [{ index: 0, description: null, amountUsdc: "2.5", status: "PENDING", deadline: null, releasedAt: null }] }),
+      job({ milestones: [{ index: 0, description: null, amount: "2.5", status: "PENDING", deadline: null, releasedAt: null }] }),
       [],
       GENERATED_AT,
     );
@@ -122,7 +122,7 @@ describe("buildEscrowReceipt", () => {
   it("clamps an over-released total to zero rather than going negative", () => {
     // Defensive: if the mirror ever recorded more released than the total, a
     // negative "outstanding" on a receipt would be worse than a zero.
-    const receipt = buildEscrowReceipt(7n, job({ totalAmountUsdc: "1" }), [], GENERATED_AT);
+    const receipt = buildEscrowReceipt(7n, job({ totalAmount: "1" }), [], GENERATED_AT);
 
     expect(receipt.totals).toEqual({ released: "1.5", outstanding: "0" });
   });

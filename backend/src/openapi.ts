@@ -96,7 +96,7 @@ const milestone = registry.register(
     id: z.string(),
     jobId: z.string(),
     index: z.number().int().describe("Zero-based position in the job's breakdown"),
-    amountUsdc: z.string().describe("Decimal string at the job asset's precision"),
+    amount: z.string().describe("Whole units of the job's asset, at its precision"),
     description: z.string().nullable(),
     status: milestoneStatus,
     deadline: z.string().datetime().nullable(),
@@ -115,7 +115,9 @@ const job = registry.register(
     asset: z.string().describe("Asset symbol the job pays in (e.g. XLM)"),
     clientId: z.string(),
     freelancerId: z.string().nullable(),
-    totalAmountUsdc: z.string(),
+    totalAmount: z
+      .string()
+      .describe("Sum of the milestones, in whole units of `asset` — not USDC"),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
     expiresAt: z.string().datetime().nullable(),

@@ -69,7 +69,7 @@ function job(overrides: Partial<JobApi> = {}): JobApi {
     title: "Landing page redesign",
     status: "COMPLETED",
     asset: "USDC",
-    totalAmountUsdc: "2.5",
+    totalAmount: "2.5",
     createdAt: "2026-01-02T00:00:00.000Z",
     client: { stellarAddress: ADDRESS },
     freelancer: { stellarAddress: "GFREELANCER" },

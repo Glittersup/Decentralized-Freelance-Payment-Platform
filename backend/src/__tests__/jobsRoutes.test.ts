@@ -124,7 +124,7 @@ async function sendWithToken(method: string, path: string, address = CLIENT) {
 const validJob = () => ({
   title: "Landing page redesign",
   description: "A longer description of the work",
-  milestones: [{ amountUsdc: "1.5" }],
+  milestones: [{ amount: "1.5" }],
 });
 
 describe("GET /api/jobs/tags", () => {
