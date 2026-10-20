@@ -18,6 +18,7 @@ import { WalletProvider } from "./hooks/WalletProvider";
 import { useWallet } from "./hooks/wallet-context";
 import AddressField from "./components/AddressField";
 import NotificationsBell from "./components/NotificationsBell";
+import Logo from "./components/Logo";
 import Dashboard from "./pages/Dashboard";
 import Activity from "./pages/Activity";
 import PostJob from "./pages/PostJob";
@@ -31,6 +32,9 @@ function Nav() {
   const { publicKey, connecting, connect, disconnect } = useWallet();
   return (
     <nav className="nav" aria-label="Main navigation">
+      <Link to="/" className="nav-brand" aria-label="Stellar Freelance Platform Home">
+        <Logo size={28} />
+      </Link>
       <Link to="/">My Jobs</Link>
       <Link to="/activity">Activity</Link>
       <Link to="/post">Post a Job</Link>
