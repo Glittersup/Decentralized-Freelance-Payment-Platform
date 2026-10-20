@@ -58,6 +58,15 @@ const h = vi.hoisted(() => ({
 
 vi.mock("../db", () => ({ prisma: { dispute: h.dispute, job: h.job } }));
 
+// `getAsset` is wrapped rather than replaced so the registry stays real for
+// every test; one test overrides it with a non-7-decimal asset, which the
+// current registry does not ship, to prove the route reads the job's decimals
+// instead of a hardcoded 1e7 (issue #35).
+vi.mock("../lib/assets", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/assets")>();
+  return { ...actual, getAsset: vi.fn(actual.getAsset) };
+});
+
 vi.mock("@stellar/stellar-sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@stellar/stellar-sdk")>();
 
@@ -155,6 +164,7 @@ function disputeRow(overrides: Record<string, unknown> = {}) {
     job: {
       id: "job_1",
       escrowId: 7n,
+      asset: "USDC",
       client: { stellarAddress: CLIENT },
       freelancer: { stellarAddress: FREELANCER },
     },
@@ -385,6 +395,57 @@ describe("POST /api/disputes/:id/resolve", () => {
       where: { id: "dispute_1" },
       data: { status: "UNDER_REVIEW", clientShare: 2.5, freelancerShare: 0 },
     });
+  });
+
+  it("converts shares with the job's asset decimals, not a hardcoded 1e7", async () => {
+    // A 2-decimal asset: 2.5 whole units is 250 base units, where the old
+    // `Math.round(share * 1e7)` would have produced 25,000,000.
+    const { getAsset } = await import("../lib/assets");
+    vi.mocked(getAsset).mockReturnValueOnce({
+      symbol: "TST",
+      decimals: 2,
+      configKey: "USDC_CONTRACT_ID",
+    });
+    h.dispute.findUnique.mockResolvedValue(
+      disputeRow({
+        onChainId: 3n,
+        job: {
+          id: "job_1",
+          escrowId: 7n,
+          asset: "TST",
+          client: { stellarAddress: CLIENT },
+          freelancer: { stellarAddress: FREELANCER },
+        },
+      }),
+    );
+    h.dispute.update.mockResolvedValue(disputeRow({ onChainId: 3n }));
+
+    const res = await post("/dispute_1/resolve", ARBITRATOR, split);
+
+    expect(res.status).toBe(200);
+    expect(lastInvocation().args).toEqual([3n, 250n, 0n]);
+  });
+
+  it("rejects a job whose asset the registry does not know", async () => {
+    h.dispute.findUnique.mockResolvedValue(
+      disputeRow({
+        onChainId: 3n,
+        job: {
+          id: "job_1",
+          escrowId: 7n,
+          asset: "NOPE",
+          client: { stellarAddress: CLIENT },
+          freelancer: { stellarAddress: FREELANCER },
+        },
+      }),
+    );
+
+    const res = await post("/dispute_1/resolve", ARBITRATOR, split);
+
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toMatch(/Unknown asset/);
+    expect(builtTxs).toHaveLength(0);
+    expect(h.dispute.update).not.toHaveBeenCalled();
   });
 
   it("refuses a non-arbitrator before it builds anything", async () => {

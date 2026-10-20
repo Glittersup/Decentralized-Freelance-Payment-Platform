@@ -10,6 +10,13 @@
 #   VITE_ESCROW_CONTRACT_ID=C... VITE_API_URL=https://api.example.com \
 #     docker compose up --build
 #
+# The backend's contract ids default to the deployment committed in
+# deployments/testnet.json, so the indexer runs in this stack out of the box.
+# Override any of them (in the shell or a root `.env`) to point the stack at a
+# different deployment after redeploying the contracts, e.g.:
+#   ESCROW_CONTRACT_ID=C... DISPUTE_CONTRACT_ID=C... REPUTATION_CONTRACT_ID=C... \
+#     docker compose up --build
+#
 # The full set is documented in README.md → Configuration → Frontend; testnet
 # values live in deployments/testnet.json.
 #
@@ -54,6 +61,17 @@ services:
       JWT_SECRET: dev-only-insecure-secret-change-me-please
       STELLAR_NETWORK: testnet
       SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+      # Contract ids the indexer subscribes to. Without them startIndexer()
+      # logs "No contract IDs configured" and the stack never syncs chain
+      # state (issue #42). The defaults are the testnet deployment recorded in
+      # deployments/testnet.json; override them to follow a redeploy.
+      ESCROW_CONTRACT_ID: ${ESCROW_CONTRACT_ID:-CALNRFGMUI7MLNLWO445U2BSDENF6DENURHXXFFRT6PV5GSOQX7GZGP7}
+      DISPUTE_CONTRACT_ID: ${DISPUTE_CONTRACT_ID:-CB24TF5GPP7EA6VWK4KZWBHHSY6FWNV3DKOGSZSDK347EODGGNPN7IMF}
+      REPUTATION_CONTRACT_ID: ${REPUTATION_CONTRACT_ID:-CA5GXR4LVH5DYGB2RZDFAM3VNJW6LQ5EKUKURSLZBJGAH7LFJAOHKSET}
+      # SACs the escrow can pay in. The XLM SAC is fixed on testnet; USDC stays
+      # empty until one is configured (see deployments/testnet.json).
+      XLM_CONTRACT_ID: ${XLM_CONTRACT_ID:-CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC}
+      USDC_CONTRACT_ID: ${USDC_CONTRACT_ID:-}
       INDEXER_POLL_INTERVAL_MS: 5000
     ports:
       - "3000:3000"

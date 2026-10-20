@@ -22,6 +22,7 @@ import { Prisma } from "@prisma/client";
 
 const RATER = Keypair.random().publicKey();
 const RATEE = Keypair.random().publicKey();
+const STRANGER = Keypair.random().publicKey();
 
 process.env.REPUTATION_CONTRACT_ID =
   "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
@@ -34,7 +35,7 @@ const h = vi.hoisted(() => ({
   rating: {
     findUnique: vi.fn(),
     create: vi.fn(),
-    aggregate: vi.fn(),
+    findMany: vi.fn(),
   },
 }));
 
@@ -89,7 +90,13 @@ afterAll(
 );
 
 beforeEach(() => {
-  for (const fn of [h.job.findUnique, h.user.findUnique, h.rating.findUnique, h.rating.create]) {
+  for (const fn of [
+    h.job.findUnique,
+    h.user.findUnique,
+    h.rating.findUnique,
+    h.rating.create,
+    h.rating.findMany,
+  ]) {
     fn.mockReset();
   }
   // Default: no existing rating.
@@ -111,15 +118,20 @@ const jobRow = () => ({
   freelancer: { stellarAddress: RATEE, id: "user_fl" },
 });
 
-async function postRating(body: unknown) {
+async function postRating(body: unknown, address: string = RATER) {
   const res = await fetch(`${baseUrl}/api/reputation`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${await tokenFor(RATER)}`,
+      Authorization: `Bearer ${await tokenFor(address)}`,
     },
     body: JSON.stringify(body),
   });
+  return { status: res.status, body: (await res.json()) as Record<string, unknown> };
+}
+
+async function getAggregate(address: string) {
+  const res = await fetch(`${baseUrl}/api/reputation/${address}`);
   return { status: res.status, body: (await res.json()) as Record<string, unknown> };
 }
 
@@ -186,6 +198,43 @@ describe("POST /api/reputation — duplicate rating handling", () => {
     expect(String(res.body.error)).toMatch(/already rated/i);
   });
 
+  it("lets the freelancer rate the client (the other direction)", async () => {
+    h.rating.findUnique.mockResolvedValue(null);
+    h.rating.create.mockResolvedValue({ id: "rating_2", score: 5 });
+
+    const res = await postRating({ jobId: "job_1", rateeAddress: RATER, score: 5 }, RATEE);
+
+    expect(res.status).toBe(201);
+    expect(h.rating.create).toHaveBeenCalledWith({
+      data: { jobId: "job_1", raterId: "user_fl", rateeId: "user_client", score: 5 },
+    });
+  });
+
+  it("rejects a ratee who is not the job's other participant", async () => {
+    const res = await postRating({ jobId: "job_1", rateeAddress: STRANGER, score: 5 });
+
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toMatch(/other participant/i);
+    // Nothing was persisted: an invalid rating must not leave a row behind.
+    expect(h.rating.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a caller who is not a participant", async () => {
+    const res = await postRating({ jobId: "job_1", rateeAddress: RATEE, score: 5 }, STRANGER);
+
+    expect(res.status).toBe(403);
+    expect(String(res.body.error)).toMatch(/not a participant/i);
+    expect(h.rating.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects rating yourself", async () => {
+    const res = await postRating({ jobId: "job_1", rateeAddress: RATER, score: 5 });
+
+    expect(res.status).toBe(400);
+    expect(String(res.body.error)).toMatch(/other participant/i);
+    expect(h.rating.create).not.toHaveBeenCalled();
+  });
+
   it("returns 400 with a readable message when simulation fails with AlreadyRated (#5)", async () => {
     h.rating.findUnique.mockResolvedValue(null);
     // Override the SDK mock to return a simulation error for this test only.
@@ -203,5 +252,89 @@ describe("POST /api/reputation — duplicate rating handling", () => {
     expect(String(res.body.error)).not.toMatch(/Error\(Contract/);
     expect(String(res.body.error)).toMatch(/already rated/i);
     expect(h.rating.create).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * `GET /api/reputation/:address` must mirror the contract's weighted aggregate
+ * (#34), not average the raw rows: a rating on a large escrow weighs more, and
+ * a second rating from the same rater does not count. These tests are the
+ * off-chain counterpart of `contracts/reputation/src/test.rs`.
+ */
+describe("GET /api/reputation/:address — weighted aggregate", () => {
+  const rating = (score: number, raterId: string, amount: string, asset = "USDC") => ({
+    score,
+    raterId,
+    job: { totalAmountUsdc: amount, asset },
+  });
+
+  it("weights each rating by its escrow's total amount", async () => {
+    // 5 on a 100-unit job and 3 on a 900-unit job: (500 + 2700) / 1000 = 3.2,
+    // whereas an unweighted mean would report 4.
+    h.rating.findMany.mockResolvedValue([
+      rating(5, "user_a", "100"),
+      rating(3, "user_b", "900"),
+    ]);
+
+    const res = await getAggregate(RATEE);
+
+    expect(res.status).toBe(200);
+    expect(res.body.averageScore).toBe(3.2);
+    // The exact u64 fields the contract exposes: sum(score × weight), weight.
+    expect(res.body.totalScore).toBe("32000000000");
+    expect(res.body.weight).toBe("10000000000");
+    expect(res.body.count).toBe(2);
+    expect(res.body.totalRatings).toBe(2);
+  });
+
+  it("matches the contract's weighted example (5 on 100 + 1 on 900 = 1.4)", async () => {
+    // The exact fixture `aggregate_weights_ratings_by_escrow_amount` asserts in
+    // contracts/reputation/src/test.rs: 5*100 + 1*900 = 1_400 over weight 1_000.
+    h.rating.findMany.mockResolvedValue([
+      rating(5, "user_a", "100"),
+      rating(1, "user_b", "900"),
+    ]);
+
+    const res = await getAggregate(RATEE);
+
+    expect(res.body.totalScore).toBe("14000000000");
+    expect(res.body.weight).toBe("10000000000");
+    expect(res.body.averageScore).toBe(1.4);
+    expect(res.body.count).toBe(2);
+  });
+
+  it("counts only the first rating from a given rater (anti-spam)", async () => {
+    // The same rater's later rating on a much larger escrow is stored but does
+    // not move the aggregate, exactly as `RatingCounted` does on chain.
+    h.rating.findMany.mockResolvedValue([
+      rating(5, "user_a", "100"),
+      rating(1, "user_a", "1000"),
+      rating(4, "user_b", "100"),
+    ]);
+
+    const res = await getAggregate(RATEE);
+
+    expect(res.body.averageScore).toBe(4.5);
+    expect(res.body.totalScore).toBe("9000000000");
+    expect(res.body.weight).toBe("2000000000");
+    expect(res.body.count).toBe(2);
+    // Both rows exist, so the profile can still list every review.
+    expect(res.body.totalRatings).toBe(3);
+  });
+
+  it("returns the zero aggregate for an address with no ratings", async () => {
+    h.rating.findMany.mockResolvedValue([]);
+
+    const res = await getAggregate(RATEE);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      address: RATEE,
+      averageScore: 0,
+      totalScore: "0",
+      weight: "0",
+      count: 0,
+      totalRatings: 0,
+    });
   });
 });
