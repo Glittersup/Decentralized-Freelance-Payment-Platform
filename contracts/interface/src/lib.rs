@@ -84,6 +84,8 @@ pub enum EscrowError {
     TooManyMilestones = 17,
     /// A configured dispute timeout must be greater than zero.
     InvalidDisputeTimeout = 18,
+    /// The contract is paused.
+    Paused = 19,
 }
 
 // ---------------------------------------------------------------------------
