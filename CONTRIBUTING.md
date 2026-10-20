@@ -152,7 +152,7 @@ Details of the dispute panel and timelock are in
 | escrow | `set_dispute_contract(dispute_contract)` | admin-only; rotates the dispute contract |
 | escrow | `create(client, freelancer, token, milestones, expiry)` | validates amounts/expiry; returns id |
 | escrow | `update_milestones(escrow_id, milestones)` | client-only, while still `Created` (before funding); re-validates and recomputes the total |
-| escrow | `fund(escrow_id)` | client deposits the total |
+| escrow | `fund(escrow_id)` | client deposits the total before the expiry timestamp |
 | escrow | `release_milestone(escrow_id, milestone_index)` | client-only; completes the job on the last one |
 | escrow | `release_partial(escrow_id, milestone_index, amount)` | client-only; pays part of a milestone and tracks `released_amount` |
 | escrow | `open_dispute(escrow_id, initiator)` | either party; freezes the escrow and starts the dispute timelock |

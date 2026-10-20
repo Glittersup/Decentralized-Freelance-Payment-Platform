@@ -123,7 +123,7 @@ state machine, cross-contract calls, and the backend's role — see
 | `set_dispute_contract(dispute_contract)` | Admin-only, for rotating the dispute contract |
 | `create(client, freelancer, token, milestones, expiry)` | Creates an unfunded escrow and returns its id |
 | `update_milestones(escrow_id, milestones)` | Client-only milestone editing, before funding |
-| `fund(escrow_id)` | Moves the asset into escrow and activates the job |
+| `fund(escrow_id)` | Client-only; moves the asset into escrow before expiry and activates the job |
 | `release_milestone(escrow_id, milestone_index)` | Releases a whole milestone to the freelancer |
 | `release_partial(escrow_id, milestone_index, amount)` | Releases part of a milestone; tracks `released_amount` |
 | `open_dispute(escrow_id, initiator)` | Either participant freezes the escrow |
