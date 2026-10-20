@@ -830,6 +830,59 @@ fn init_twice_is_rejected() {
 }
 
 #[test]
+fn pause_blocks_escrow_changes_until_admin_unpauses() {
+    let f = fixture();
+    let admin = Address::generate(&f.env);
+    let dispute = Address::generate(&f.env);
+    f.c().init(&admin, &dispute);
+    let id = f.c().create(
+        &f.client,
+        &f.freelancer,
+        &f.token,
+        &milestones(&f.env, &[1_000]),
+        &10_000,
+    );
+
+    f.c().pause();
+    assert!(f.c().is_paused());
+    assert!(matches!(
+        f.c().try_create(
+            &f.client,
+            &f.freelancer,
+            &f.token,
+            &milestones(&f.env, &[1_000]),
+            &10_000,
+        ),
+        Err(Ok(EscrowError::Paused))
+    ));
+    assert!(matches!(f.c().try_fund(&id), Err(Ok(EscrowError::Paused))));
+
+    f.c().unpause();
+    assert!(!f.c().is_paused());
+    f.c().fund(&id);
+    assert_eq!(f.c().get(&id).status, EscrowStatus::Active);
+
+    f.c().pause();
+    assert!(matches!(
+        f.c().try_release_milestone(&id, &0),
+        Err(Ok(EscrowError::Paused))
+    ));
+    f.c().unpause();
+    f.c().release_milestone(&id, &0);
+    assert_eq!(f.c().get(&id).status, EscrowStatus::Completed);
+}
+
+#[test]
+#[should_panic]
+fn pause_requires_admin_authorization() {
+    let f = fixture();
+    let admin = Address::generate(&f.env);
+    f.c().init(&admin, &Address::generate(&f.env));
+    f.env.set_auths(&[]);
+    f.c().pause();
+}
+
+#[test]
 fn get_unknown_escrow_is_rejected() {
     let f = fixture();
     let res = f.c().try_get(&999);

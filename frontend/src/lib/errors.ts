@@ -38,9 +38,10 @@ const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
   11: "This contract is already initialized, or the address isn't on the arbitrator panel.",
   12: "This contract isn't initialized yet, or the approval threshold is invalid.",
   13: "The shares don't match the funds held, or the panel hasn't approved enough votes.",
-  14: "A numeric overflow occurred.",
+  14: "A numeric overflow occurred, or the contract is paused.",
   15: "That amount is more than what's left on the milestone.",
   16: "The dispute timeout hasn't been reached yet.",
+  18: "This contract is paused.",
 };
 
 /** Extract the `#N` discriminant from a Soroban contract error, if present. */

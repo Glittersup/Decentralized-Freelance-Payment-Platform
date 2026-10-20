@@ -66,7 +66,7 @@ Honest snapshot of what works today (see [`docs/TESTNET.md`](./docs/TESTNET.md) 
 | `escrow` contract | ✅ Complete — milestones (editable before funding, partial releases), expiry refunds, validated inputs, TTL, events |
 | `dispute` contract | ✅ Complete — verified raise, M-of-N arbitrator panel, resolution that calls back into escrow, dispute timelock |
 | `reputation` contract | ✅ Complete — escrow-verified 1–5 ratings, amount-weighted aggregates, per-pair anti-spam (`docs/REPUTATION.md`) |
-| Contract tests | ✅ 86 tests: 83 unit tests (escrow 49, dispute 17, reputation 17) covering every state transition and failure path, plus 3 end-to-end tests in `contracts/dispute/tests/full_flow.rs` that drive escrow + dispute + reputation together |
+| Contract tests | ✅ 98 tests: 95 unit tests (escrow 57, dispute 21, reputation 17) covering every state transition and failure path, plus 3 end-to-end tests in `contracts/dispute/tests/full_flow.rs` that drive escrow + dispute + reputation together |
 | Backend tests | ✅ 138 tests |
 | Frontend tests | ✅ 156 tests (Vitest + Testing Library) — pages, components and lib helpers |
 | Testnet deployment | ✅ Deployed and initialized (ids in [`deployments/testnet.json`](./deployments/testnet.json)) |
@@ -121,6 +121,7 @@ state machine, cross-contract calls, and the backend's role — see
 |----------|---------|
 | `init(admin, dispute_contract)` | One-shot setup; records the only contract allowed to call `resolve` |
 | `set_dispute_contract(dispute_contract)` | Admin-only, for rotating the dispute contract |
+| `pause()` / `unpause()` / `is_paused()` | Admin-only circuit breaker; while paused, escrow state changes and fund movements are blocked |
 | `create(client, freelancer, token, milestones, expiry)` | Creates an unfunded escrow and returns its id |
 | `update_milestones(escrow_id, milestones)` | Client-only milestone editing, before funding |
 | `fund(escrow_id)` | Moves the asset into escrow and activates the job |
@@ -137,6 +138,7 @@ state machine, cross-contract calls, and the backend's role — see
 | Function | Purpose |
 |----------|---------|
 | `init(arbitrators, threshold)` | One-shot setup; validates a non-empty panel and `1 <= threshold <= len` |
+| `pause()` / `unpause()` / `is_paused()` | The first arbitrator is the admin; while paused, raising, approving, and arbitrating are blocked |
 | `raise(escrow_id, escrow_contract, raised_by, reason)` | Records the dispute and returns its id; cross-checks that the escrow is `Disputed` and `raised_by` is a party |
 | `approve(dispute_id, arbitrator, client_share, freelancer_share)` | Panel-only vote on a split; rejects negative shares only — the sum must equal the funds held, enforced later by `escrow.resolve` |
 | `arbitrate(dispute_id, client_share, freelancer_share)` | Executes the split once approvals *for that exact split* reach the threshold; cross-calls `escrow.resolve` |
@@ -455,7 +457,7 @@ not just a restart.
 ## Testing
 
 ```bash
-# Contracts — 86 tests (83 unit + 3 integration)
+# Contracts — 98 tests (95 unit + 3 integration)
 cd contracts
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings

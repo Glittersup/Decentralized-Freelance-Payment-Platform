@@ -149,6 +149,7 @@ Details of the dispute panel and timelock are in
 |----------|----------|-------|
 | escrow | `init(admin, dispute_contract)` | one-time; admin can rotate the dispute contract |
 | escrow | `set_dispute_contract(dispute_contract)` | admin-only; rotates the dispute contract |
+| escrow | `pause()` / `unpause()` / `is_paused()` | admin-only circuit breaker; blocks escrow state changes and fund movements while paused |
 | escrow | `create(client, freelancer, token, milestones, expiry)` | validates amounts/expiry; returns id |
 | escrow | `update_milestones(escrow_id, milestones)` | client-only, while still `Created` (before funding); re-validates and recomputes the total |
 | escrow | `fund(escrow_id)` | client deposits the total |
@@ -160,6 +161,7 @@ Details of the dispute panel and timelock are in
 | escrow | `reclaim_after_dispute_timeout(escrow_id)` | client refund from `Disputed` once the dispute deadline passes |
 | escrow | `get(escrow_id)` / `dispute_contract()` / `dispute_deadline(escrow_id)` | views |
 | dispute | `init(arbitrators, threshold)` | one-time; every panel member authorizes |
+| dispute | `pause()` / `unpause()` / `is_paused()` | first arbitrator is admin; blocks raising, approving, and arbitrating while paused |
 | dispute | `raise(escrow_id, escrow_contract, raised_by, reason)` | verifies escrow is Disputed and caller is a party |
 | dispute | `approve(dispute_id, arbitrator, client_share, freelancer_share)` | panel-only; records an approval of a specific split |
 | dispute | `arbitrate(dispute_id, client_share, freelancer_share)` | needs `threshold` matching approvals; cross-calls `escrow.resolve` |
@@ -193,7 +195,7 @@ without exporting one another's symbols. Contract crates are pulled in only as
 ## Testing
 
 ```bash
-# Contracts: 86 tests — every state transition and failure path + 3 integration
+# Contracts: 98 tests — every state transition and failure path + 3 integration
 cd contracts
 cargo test
 cargo test -p escrow                    # one contract

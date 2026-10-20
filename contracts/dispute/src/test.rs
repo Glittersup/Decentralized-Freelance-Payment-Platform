@@ -179,6 +179,50 @@ fn init_requires_arbitrator_auth() {
     DisputeContractClient::new(&env, &dispute).init(&panel, &1);
 }
 
+#[test]
+fn pause_blocks_raising_until_admin_unpauses() {
+    let f = setup();
+    let escrow_id = f.disputed();
+    let dispute_id = f
+        .dispute_client()
+        .raise(&escrow_id, &f.escrow, &f.client, &f.reason());
+
+    f.dispute_client().pause();
+    assert!(f.dispute_client().is_paused());
+    assert!(matches!(
+        f.dispute_client()
+            .try_raise(&escrow_id, &f.escrow, &f.client, &f.reason()),
+        Err(Ok(DisputeError::Paused))
+    ));
+    assert!(matches!(
+        f.dispute_client()
+            .try_approve(&dispute_id, &f.arbitrator(), &1_000, &0),
+        Err(Ok(DisputeError::Paused))
+    ));
+    assert!(matches!(
+        f.dispute_client().try_arbitrate(&dispute_id, &1_000, &0),
+        Err(Ok(DisputeError::Paused))
+    ));
+
+    f.dispute_client().unpause();
+    assert!(!f.dispute_client().is_paused());
+    f.dispute_client()
+        .approve(&dispute_id, &f.arbitrator(), &1_000, &0);
+    f.dispute_client().arbitrate(&dispute_id, &1_000, &0);
+    assert_eq!(
+        f.dispute_client().get(&dispute_id).status,
+        DisputeStatus::Resolved
+    );
+}
+
+#[test]
+#[should_panic]
+fn pause_requires_admin_authorization() {
+    let f = setup();
+    f.env.set_auths(&[]);
+    f.dispute_client().pause();
+}
+
 // ---------------------------------------------------------------------------
 // raise
 // ---------------------------------------------------------------------------

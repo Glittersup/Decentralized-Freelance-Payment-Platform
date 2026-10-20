@@ -40,6 +40,7 @@ export const ESCROW_ERROR_MESSAGES: Record<number, string> = {
   15: "That amount is more than what's left on the milestone.",
   16: "The dispute timeout hasn't been reached yet.",
   17: "The milestone list exceeds the maximum allowed length (20 milestones).",
+  18: "This contract is paused.",
 };
 
 /** `DisputeError` discriminants from `contracts/dispute/src/lib.rs`. */
@@ -57,6 +58,7 @@ export const DISPUTE_ERROR_MESSAGES: Record<number, string> = {
   11: "The arbitrator panel is invalid.",
   12: "The approval threshold is invalid.",
   13: "The panel hasn't approved that exact split enough times yet.",
+  14: "This contract is paused.",
 };
 
 /** `ReputationError` discriminants from `contracts/reputation/src/lib.rs`. */
