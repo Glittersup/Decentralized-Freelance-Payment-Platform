@@ -149,34 +149,37 @@ const getFreelancersHandler = async (
           totalJobsCount: number;
         }>
       >(Prisma.sql`
-        WITH metrics AS (
+        WITH rating_metrics AS (
+          SELECT
+            r."rateeId",
+            AVG(r."score")::float AS "averageScore",
+            COUNT(*)::int AS "totalRatings"
+          FROM "Rating" r
+          GROUP BY r."rateeId"
+        ),
+        job_metrics AS (
+          SELECT
+            j."freelancerId",
+            COUNT(*) FILTER (WHERE j."status"::text = 'COMPLETED')::int AS "completedJobsCount",
+            COUNT(*)::int AS "totalJobsCount"
+          FROM "Job" j
+          WHERE j."freelancerId" IS NOT NULL
+          GROUP BY j."freelancerId"
+        ),
+        metrics AS (
           SELECT
             u."id",
             u."stellarAddress",
             u."displayName",
             u."bio",
             u."createdAt",
-            COALESCE((
-              SELECT AVG(r."score")::float
-              FROM "Rating" r
-              WHERE r."rateeId" = u."id"
-            ), 0::float) AS "averageScore",
-            (
-              SELECT COUNT(*)::int
-              FROM "Rating" r
-              WHERE r."rateeId" = u."id"
-            ) AS "totalRatings",
-            (
-              SELECT COUNT(*)::int
-              FROM "Job" j
-              WHERE j."freelancerId" = u."id" AND j."status"::text = 'COMPLETED'
-            ) AS "completedJobsCount",
-            (
-              SELECT COUNT(*)::int
-              FROM "Job" j
-              WHERE j."freelancerId" = u."id"
-            ) AS "totalJobsCount"
+            COALESCE(r."averageScore", 0::float) AS "averageScore",
+            COALESCE(r."totalRatings", 0) AS "totalRatings",
+            COALESCE(j."completedJobsCount", 0) AS "completedJobsCount",
+            COALESCE(j."totalJobsCount", 0) AS "totalJobsCount"
           FROM "User" u
+          LEFT JOIN rating_metrics r ON r."rateeId" = u."id"
+          LEFT JOIN job_metrics j ON j."freelancerId" = u."id"
           ${searchFilter}
         )
         SELECT *
