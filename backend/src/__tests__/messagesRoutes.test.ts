@@ -135,12 +135,46 @@ describe("GET /api/messages/:jobId", () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(res.body[0].sender.stellarAddress).toBe(FREELANCER);
-    // Oldest first, so the view reads top to bottom.
+    // The latest window is returned oldest first, so the view reads top to bottom.
     expect(h.message.findMany).toHaveBeenCalledWith({
       where: { jobId: "job_1" },
-      orderBy: { createdAt: "asc" },
+      take: 50,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: { sender: { select: { stellarAddress: true, displayName: true } } },
     });
+  });
+
+  it("loads an older message window using a cursor", async () => {
+    h.job.findUnique.mockResolvedValue(jobRow());
+    h.message.findMany.mockResolvedValue([
+      messageRow({ id: "message_2" }),
+      messageRow({ id: "message_1" }),
+    ]);
+
+    const res = await get("/job_1?limit=2&before=message_3", CLIENT);
+
+    expect(res.status).toBe(200);
+    expect(res.body.map((message: { id: string }) => message.id)).toEqual([
+      "message_1",
+      "message_2",
+    ]);
+    expect(h.message.findMany).toHaveBeenCalledWith({
+      where: { jobId: "job_1" },
+      cursor: { id: "message_3" },
+      skip: 1,
+      take: 2,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      include: { sender: { select: { stellarAddress: true, displayName: true } } },
+    });
+  });
+
+  it("rejects invalid pagination parameters", async () => {
+    h.job.findUnique.mockResolvedValue(jobRow());
+
+    const res = await get("/job_1?limit=0", CLIENT);
+
+    expect(res.status).toBe(400);
+    expect(h.message.findMany).not.toHaveBeenCalled();
   });
 
   it("returns the conversation to the freelancer too", async () => {

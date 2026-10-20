@@ -104,6 +104,9 @@ model Milestone {
   /// (issue #41). Matches the `amount` field in the API request body.
   amount      Decimal
   description String?
+  /// True when the indexed chain event lacks per-milestone data and the
+  /// off-chain breakdown no longer matches the on-chain count and total.
+  isStale     Boolean         @default(false)
   status      MilestoneStatus @default(PENDING)
   deadline    DateTime?
   releasedAt  DateTime?
@@ -276,6 +279,8 @@ model IndexerDeadLetter {
   eventName   String?
   contractId  String?
   error       String
+  /// Encoded Soroban event required to retry the failed dispatch.
+  eventPayload Json?
   /// Incremented when the same event is recorded again (e.g. after a cursor rewind)
   attempts    Int      @default(1)
   firstSeenAt DateTime @default(now())
@@ -394,4 +399,3 @@ model Deliverable {
   @@index([milestoneId])
   @@index([uploadedById])
 }
-
