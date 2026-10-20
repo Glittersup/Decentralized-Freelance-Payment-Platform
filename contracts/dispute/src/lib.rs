@@ -172,8 +172,13 @@ impl DisputeContract {
         if threshold == 0 || threshold > arbitrators.len() {
             return Err(DisputeError::InvalidThreshold);
         }
+        let mut seen = Vec::new(&env);
         for arbitrator in arbitrators.iter() {
+            if seen.iter().any(|member| member == arbitrator) {
+                return Err(DisputeError::InvalidPanel);
+            }
             arbitrator.require_auth();
+            seen.push_back(arbitrator);
         }
         env.storage()
             .instance()

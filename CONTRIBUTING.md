@@ -10,7 +10,8 @@ is structured, how to get a working environment, and the conventions to follow.
 A decentralized freelance payment platform on Stellar. Clients fund a
 milestone-based escrow in a Stellar Asset Contract (USDC in production); the
 freelancer is paid as milestones are approved. Disputes are resolved by an
-arbitrator, and both parties rate each other on-chain afterwards.
+M-of-N arbitrator panel, with a seven-day client reclaim timelock if the panel
+does not rule. Both parties can rate each other on-chain afterwards.
 
 Three Soroban contracts (Rust → Wasm) plus a React frontend and an Express
 backend. **Everything is testnet-only — never use real funds.**

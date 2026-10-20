@@ -154,6 +154,20 @@ fn init_rejects_empty_panel() {
 }
 
 #[test]
+fn init_rejects_duplicate_panel_members() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let dispute = env.register(DisputeContract, ());
+    let arbitrator = Address::generate(&env);
+    let mut panel = Vec::new(&env);
+    panel.push_back(arbitrator.clone());
+    panel.push_back(arbitrator);
+
+    let res = DisputeContractClient::new(&env, &dispute).try_init(&panel, &2);
+    assert!(matches!(res, Err(Ok(DisputeError::InvalidPanel))));
+}
+
+#[test]
 fn init_rejects_bad_threshold() {
     let env = Env::default();
     env.mock_all_auths();
