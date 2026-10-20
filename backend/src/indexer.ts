@@ -55,6 +55,7 @@ import { config } from "./config";
 import { prisma } from "./db";
 import { checkConfiguredContractIds, type ContractIdName } from "./lib/contractFreshness";
 import { ASSETS, formatAmount, fromBaseUnits, toBaseUnits } from "./lib/assets";
+import { FUNDED_JOB_STATUS } from "./lib/jobStatus";
 import {
   KNOWN_EVENTS,
   decodeEventFields,
@@ -616,7 +617,12 @@ export async function handleCreated(escrowId: bigint | null, store: IndexerStore
 
 export async function handleFunded(escrowId: bigint | null, store: IndexerStore): Promise<void> {
   if (escrowId === null) return;
-  const result = await store.job.updateMany({ where: { escrowId }, data: { status: "ACTIVE" } });
+  const result = await store.job.updateMany({
+    where: { escrowId },
+    // Shared with POST /api/escrow/sync/:jobId so the two writers of the funded
+    // transition cannot disagree again (issue #43).
+    data: { status: FUNDED_JOB_STATUS },
+  });
   if (result.count === 0) {
     throw new Error(`unlinked escrow: no job found for escrow id ${escrowId}`);
   }
