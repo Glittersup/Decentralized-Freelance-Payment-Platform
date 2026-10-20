@@ -797,6 +797,40 @@ fn reclaim_after_dispute_timeout_refunds_unreleased() {
 }
 
 #[test]
+fn dispute_timeout_is_configurable_and_applies_to_new_disputes() {
+    let f = fixture();
+    let admin = Address::generate(&f.env);
+    let dispute = Address::generate(&f.env);
+    init_escrow(&f, &admin, &dispute);
+
+    assert_eq!(f.c().dispute_timeout_seconds(), 7 * 24 * 60 * 60);
+    f.c().set_dispute_timeout(&120);
+    assert_eq!(f.c().dispute_timeout_seconds(), 120);
+
+    let id = f.funded(&[1_000]);
+    f.c().open_dispute(&id, &f.client);
+    assert_eq!(f.c().dispute_deadline(&id), 1_000 + 120);
+}
+
+#[test]
+fn zero_dispute_timeout_is_rejected() {
+    let f = fixture();
+    let admin = Address::generate(&f.env);
+    let dispute = Address::generate(&f.env);
+    init_escrow(&f, &admin, &dispute);
+
+    let res = f.c().try_set_dispute_timeout(&0);
+    assert!(matches!(res, Err(Ok(EscrowError::InvalidDisputeTimeout))));
+}
+
+#[test]
+fn set_dispute_timeout_before_init_is_rejected() {
+    let f = fixture();
+    let res = f.c().try_set_dispute_timeout(&120);
+    assert!(matches!(res, Err(Ok(EscrowError::NotInitialized))));
+}
+
+#[test]
 fn reclaim_after_dispute_timeout_on_active_is_rejected() {
     let f = fixture();
     let id = f.funded(&[1_000]);
@@ -932,6 +966,17 @@ fn init_requires_admin_auth() {
     let admin = Address::generate(&env);
     let dispute = Address::generate(&env);
     EscrowContractClient::new(&env, &escrow).init(&admin, &dispute);
+}
+
+#[test]
+#[should_panic]
+fn set_dispute_timeout_requires_admin_auth() {
+    let f = fixture();
+    let admin = Address::generate(&f.env);
+    let dispute = Address::generate(&f.env);
+    init_escrow(&f, &admin, &dispute);
+    f.env.set_auths(&[]);
+    f.c().set_dispute_timeout(&120);
 }
 
 #[test]

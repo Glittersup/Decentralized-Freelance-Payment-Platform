@@ -1,7 +1,7 @@
 # Dispute resolution design
 
-How a frozen escrow gets unfrozen: a panel of arbitrators rules by majority, with
-a timelock escape hatch if they never do.
+How a frozen escrow gets unfrozen: a panel of arbitrators rules by threshold,
+with a configurable timelock escape hatch if they never do.
 
 ## Actors
 
@@ -16,7 +16,7 @@ a timelock escape hatch if they never do.
 ```
 1. Either party calls  escrow.open_dispute(escrow_id, initiator)
      → escrow status: Active → Disputed
-     → records a dispute deadline (now + 7 days)
+     → records a dispute deadline (now + configured timeout; default 7 days)
 
 2. Either party calls  dispute.raise(escrow_id, escrow_contract, raised_by, reason)
      → verifies via escrow that the escrow is Disputed and raised_by is a party
@@ -49,7 +49,15 @@ a timelock escape hatch if they never do.
   the escrow's remaining balance and that the caller is the registered dispute
   contract, so a compromised or buggy dispute contract cannot over- or under-pay.
 - **`init` needs every panel member's signature.** This prevents an attacker from
-  front-running a fresh deployment to install themselves as an arbitrator.
+  front-running a fresh deployment to install themselves as an arbitrator. The
+  separate admin signature grants management access without making the admin
+  an arbitrator unless explicitly included in the panel.
+- **Panel changes invalidate old approvals.** Votes are keyed by panel version,
+  so removing and later re-adding an arbitrator cannot revive an old vote.
+- **Configuration is admin-controlled.** `dispute.set_panel` replaces members
+  and the threshold; `dispute.set_threshold` changes only the threshold.
+  `escrow.set_dispute_timeout` changes the positive timeout for future disputes;
+  already-open disputes keep their recorded deadlines.
 - **Timelock is a genuine escape hatch.** `reclaim_after_dispute_timeout` only
   fires after the deadline, only from `Disputed`, and moves the escrow to
   `Refunded`. A late ruling then fails `escrow.resolve`'s status check, so funds
@@ -172,4 +180,6 @@ member calls `dispute.approve` with the **same** shares before anyone calls
 - The timelock is measured from `open_dispute` and is not extendable; a panel
   that needs more time must rule before the deadline or the client can reclaim.
 
-Constants live in `contracts/escrow/src/lib.rs` (`DISPUTE_TIMEOUT_SECONDS`).
+The initial timeout defaults to seven days and is stored in escrow instance
+storage. `escrow.dispute_timeout_seconds()` reads the current value;
+`escrow.set_dispute_timeout(timeout_seconds)` changes it for future disputes.

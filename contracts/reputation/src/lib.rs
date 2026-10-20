@@ -139,6 +139,21 @@ impl ReputationContract {
         Ok(())
     }
 
+    /// Change the trusted escrow contract. Admin only.
+    pub fn set_escrow_contract(env: Env, escrow_contract: Address) -> Result<(), ReputationError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(ReputationError::NotInitialized)?;
+        admin.require_auth();
+        env.storage()
+            .instance()
+            .set(&DataKey::EscrowContract, &escrow_contract);
+        Self::extend_instance(&env);
+        Ok(())
+    }
+
     /// Submit a rating after a job completes.
     ///
     /// Verifies with the escrow contract that the job is completed and that the
@@ -216,13 +231,16 @@ impl ReputationContract {
         // cross-contract call and keeps `get_aggregate` a single storage read.
         let counted_key = DataKey::RatingCounted(ratee.clone(), rater.clone());
         if !env.storage().persistent().has(&counted_key) {
-            env.storage().persistent().set(&counted_key, &escrow_id);
-            env.storage()
-                .persistent()
-                .extend_ttl(&counted_key, TTL_THRESHOLD, TTL_EXTEND_TO);
-
-            let weight: u64 = escrow.total_amount.try_into().unwrap_or(0);
+            let weight: u64 = escrow
+                .total_amount
+                .try_into()
+                .map_err(|_| ReputationError::Overflow)?;
             if weight > 0 {
+                env.storage().persistent().set(&counted_key, &escrow_id);
+                env.storage()
+                    .persistent()
+                    .extend_ttl(&counted_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+
                 let mut aggregate = Self::get_aggregate(env.clone(), ratee.clone());
                 aggregate.total_score = aggregate
                     .total_score

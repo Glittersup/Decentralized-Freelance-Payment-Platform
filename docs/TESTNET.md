@@ -11,7 +11,7 @@ are testnet-only deployments; never send real funds to them.
 
 - **Network:** testnet (`Test SDF Network ; September 2015`)
 - **Admin / arbitrator:** `GBPLJHDI6RPLS4EEJJTM7EVEV3UNTXLFAACWA63QSTHGLWH5RO3LQ75B`
-  (the panel is `init(arbitrators=[admin], threshold=1)`)
+  (the panel is `init(admin=admin, arbitrators=[admin], threshold=1)`)
 - **USDC contract:** *not configured* — the demo uses the testnet XLM SAC
   (`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`) so it can run
   without Circle testnet USDC. Set `USDC_CONTRACT_ID` before deploying to use a

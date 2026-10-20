@@ -82,12 +82,15 @@ pub struct Proposal {
 pub enum DataKey {
     Dispute(u64),
     Counter,
-    /// The arbitrator panel, set once in `init`.
+    Admin,
+    /// The arbitrator panel, initially set in `init`.
     Arbitrators,
     /// How many panel approvals a proposal needs (M-of-N).
     Threshold,
-    /// (dispute_id, arbitrator) → the split that arbitrator approved.
-    Approval(u64, Address),
+    /// Incremented whenever the panel changes, invalidating previous votes.
+    PanelVersion,
+    /// (dispute_id, panel_version, arbitrator) → the approved split.
+    Approval(u64, u32, Address),
     /// (escrow_contract, escrow_id) → dispute_id. Scoped by the escrow contract
     /// so the duplicate guard covers one job, not every job that happens to
     /// share an id: the same `escrow_id` on a different escrow contract (a
@@ -158,19 +161,25 @@ pub struct DisputeContract;
 
 #[contractimpl]
 impl DisputeContract {
-    /// One-time initialisation: set the arbitrator panel and approval threshold.
+    /// One-time initialisation: set the admin, arbitrator panel and threshold.
     ///
     /// Every panel member must authorize, so a third party cannot take over the
     /// role by calling `init` first on a freshly deployed contract.
-    pub fn init(env: Env, arbitrators: Vec<Address>, threshold: u32) -> Result<(), DisputeError> {
+    pub fn init(
+        env: Env,
+        admin: Address,
+        arbitrators: Vec<Address>,
+        threshold: u32,
+    ) -> Result<(), DisputeError> {
+        admin.require_auth();
         if env.storage().instance().has(&DataKey::Arbitrators) {
             return Err(DisputeError::AlreadyInitialized);
         }
-        if arbitrators.is_empty() {
-            return Err(DisputeError::InvalidPanel);
-        }
-        if threshold == 0 || threshold > arbitrators.len() {
-            return Err(DisputeError::InvalidThreshold);
+        Self::validate_panel(&env, &arbitrators, threshold)?;
+        for arbitrator in arbitrators.iter() {
+            if arbitrator != admin {
+                arbitrator.require_auth();
+            }
         }
         let mut seen = Vec::new(&env);
         for arbitrator in arbitrators.iter() {
@@ -180,9 +189,38 @@ impl DisputeContract {
             arbitrator.require_auth();
             seen.push_back(arbitrator);
         }
+
+        let version: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::PanelVersion)
+            .unwrap_or(0);
+        let next_version = version.checked_add(1).ok_or(DisputeError::Overflow)?;
         env.storage()
             .instance()
             .set(&DataKey::Arbitrators, &arbitrators);
+        env.storage()
+            .instance()
+            .set(&DataKey::Threshold, &threshold);
+        env.storage()
+            .instance()
+            .set(&DataKey::PanelVersion, &next_version);
+        Self::extend_instance(&env);
+        Ok(())
+    }
+
+    /// Change the approval threshold. Admin only.
+    pub fn set_threshold(env: Env, threshold: u32) -> Result<(), DisputeError> {
+        let admin = Self::admin(&env)?;
+        admin.require_auth();
+        let arbitrators: Vec<Address> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Arbitrators)
+            .ok_or(DisputeError::NotInitialized)?;
+        if threshold == 0 || threshold > arbitrators.len() {
+            return Err(DisputeError::InvalidThreshold);
+        }
         env.storage()
             .instance()
             .set(&DataKey::Threshold, &threshold);
@@ -287,13 +325,18 @@ impl DisputeContract {
         if client_share < 0 || freelancer_share < 0 {
             return Err(DisputeError::EscrowRejected);
         }
+        let panel_version: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::PanelVersion)
+            .unwrap_or(0);
 
         let dispute = Self::load(&env, dispute_id)?;
         if dispute.status != DisputeStatus::Raised && dispute.status != DisputeStatus::UnderReview {
             return Err(DisputeError::InvalidStatus);
         }
 
-        let key = DataKey::Approval(dispute_id, arbitrator.clone());
+        let key = DataKey::Approval(dispute_id, panel_version, arbitrator.clone());
         env.storage().persistent().set(
             &key,
             &Proposal {
@@ -335,6 +378,11 @@ impl DisputeContract {
             .instance()
             .get(&DataKey::Threshold)
             .ok_or(DisputeError::NotInitialized)?;
+        let panel_version: u32 = env
+            .storage()
+            .instance()
+            .get(&DataKey::PanelVersion)
+            .unwrap_or(0);
 
         let mut dispute = Self::load(&env, dispute_id)?;
         if dispute.status != DisputeStatus::Raised && dispute.status != DisputeStatus::UnderReview {
@@ -344,7 +392,7 @@ impl DisputeContract {
         // Count panel approvals that match the proposed split exactly.
         let mut approvals: u32 = 0;
         for arbitrator in panel.iter() {
-            let key = DataKey::Approval(dispute_id, arbitrator);
+            let key = DataKey::Approval(dispute_id, panel_version, arbitrator);
             let approval: Option<Proposal> = env.storage().persistent().get(&key);
             if let Some(p) = approval {
                 if p.client_share == client_share && p.freelancer_share == freelancer_share {
@@ -418,6 +466,34 @@ impl DisputeContract {
     // -----------------------------------------------------------------------
     // Internal helpers
     // -----------------------------------------------------------------------
+
+    fn admin(env: &Env) -> Result<Address, DisputeError> {
+        env.storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(DisputeError::NotInitialized)
+    }
+
+    fn validate_panel(
+        env: &Env,
+        arbitrators: &Vec<Address>,
+        threshold: u32,
+    ) -> Result<(), DisputeError> {
+        if arbitrators.is_empty() {
+            return Err(DisputeError::InvalidPanel);
+        }
+        if threshold == 0 || threshold > arbitrators.len() {
+            return Err(DisputeError::InvalidThreshold);
+        }
+        let mut unique = Vec::new(env);
+        for arbitrator in arbitrators.iter() {
+            if unique.iter().any(|member| member == arbitrator) {
+                return Err(DisputeError::InvalidPanel);
+            }
+            unique.push_back(arbitrator);
+        }
+        Ok(())
+    }
 
     fn load(env: &Env, id: u64) -> Result<DisputeData, DisputeError> {
         let dispute: DisputeData = env

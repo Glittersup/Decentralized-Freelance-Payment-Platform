@@ -82,6 +82,8 @@ pub enum EscrowError {
     DisputeTimeoutNotReached = 16,
     /// The milestone list exceeds [`MAX_MILESTONES`].
     TooManyMilestones = 17,
+    /// A configured dispute timeout must be greater than zero.
+    InvalidDisputeTimeout = 18,
 }
 
 // ---------------------------------------------------------------------------
