@@ -196,7 +196,7 @@ return an **unsigned XDR** for the client to sign, and never a key.
 | `GET` | `/api/disputes/:id` | — | Dispute detail |
 | `POST` | `/api/disputes/:id/resolve` | ✅ + arbitrator | Build `dispute.arbitrate` |
 | `POST` | `/api/reputation` | ✅ | Build `reputation.submit` |
-| `GET` | `/api/reputation/:address` | — | Aggregate reputation |
+| `GET` | `/api/reputation/:address` | — | Weighted aggregate reputation, mirroring `reputation.get_aggregate` |
 | `GET` | `/api/reputation/:address/ratings` | — | Individual ratings received (score, job, date) |
 
 ### Skills and categories

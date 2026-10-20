@@ -1,5 +1,10 @@
 -- Step 1: Re-point any deliverables attached to duplicate milestones to the surviving milestone.
--- The surviving row is: RELEASED first, then highest releasedAmount, then latest createdAt, then lowest id.
+-- The surviving row is: RELEASED first, then highest releasedAmount, then lowest id.
+--
+-- `Milestone` has no `createdAt` column (see schema.prisma), so ordering by it
+-- made `prisma migrate deploy` fail with "column \"createdAt\" does not exist"
+-- (SQLSTATE 42703) on every fresh database, including CI. `id` is the stable
+-- tie-breaker; the choice is only needed to make the dedupe deterministic.
 WITH ranked AS (
   SELECT
     id,
@@ -10,7 +15,6 @@ WITH ranked AS (
       ORDER BY
         CASE WHEN status = 'RELEASED' THEN 0 ELSE 1 END,
         "releasedAmount" DESC,
-        "createdAt" DESC,
         id ASC
     ) as rn
   FROM "Milestone"
@@ -40,7 +44,6 @@ WITH ranked AS (
       ORDER BY
         CASE WHEN status = 'RELEASED' THEN 0 ELSE 1 END,
         "releasedAmount" DESC,
-        "createdAt" DESC,
         id ASC
     ) as rn
   FROM "Milestone"
