@@ -11,6 +11,7 @@ import { isAllowedOrigin, parseList } from "./lib/access";
 import { jsonReplacer } from "./lib/json";
 import { errorHandler } from "./middleware/errorHandler";
 import { notFoundHandler } from "./middleware/notFound";
+import { createAuthRateLimiter } from "./middleware/rateLimit";
 import { usersRouter } from "./routes/users";
 import { jobsRouter } from "./routes/jobs";
 import { escrowRouter } from "./routes/escrow";
@@ -94,6 +95,18 @@ export function createApp() {
   // any route that returns a job or dispute row would 500 after a successful write.
   app.set("json replacer", jsonReplacer);
   app.use(rateLimit({ windowMs: 60_000, max: 100 }));
+
+  // Wallet auth gets a tighter, dedicated budget on top of the global limiter
+  // (issue #44). Challenge issuance writes a nonce row, and /auth is where an
+  // attacker scripts signature attempts, so 100/min/IP was far too loose. One
+  // limiter per route means the two counters are independent: exhausting the
+  // challenge budget cannot block the auth call that completes the flow.
+  const authLimit = {
+    windowMs: config.AUTH_RATE_LIMIT_WINDOW_MS,
+    max: config.AUTH_RATE_LIMIT_MAX,
+  };
+  app.use("/api/users/challenge", createAuthRateLimiter(authLimit));
+  app.use("/api/users/auth", createAuthRateLimiter(authLimit));
 
   app.get("/health", async (_req, res) => {
   const dbOk = await checkDbHealth();

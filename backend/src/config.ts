@@ -14,6 +14,12 @@ const schema = z.object({
   USDC_CONTRACT_ID: z.string().default(""),
   XLM_CONTRACT_ID: z.string().default(""),
   INDEXER_POLL_INTERVAL_MS: z.coerce.number().default(5000),
+  // Dedicated budget for the wallet-auth endpoints (issue #44), applied per IP
+  // and per route on top of the global 100/min limiter in app.ts. Nonce
+  // issuance and signature attempts are the cheapest thing to script, so they
+  // get a much tighter cap than the rest of the API.
+  AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   // How far ahead a milestone deadline counts as "due soon" for the in-app
   // reminders (issue #74). A per-request `?withinHours=` overrides it.
   REMINDER_HORIZON_HOURS: z.coerce.number().default(48),

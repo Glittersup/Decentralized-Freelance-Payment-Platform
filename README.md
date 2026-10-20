@@ -213,6 +213,11 @@ two ever drift apart.
 
 Rate limiting is 100 requests/minute per IP, and every request is logged as one
 structured JSON line (method, path, status, duration) unless `NODE_ENV=test`.
+The wallet-auth endpoints get a tighter, dedicated budget on top of that:
+`GET /api/users/challenge` and `POST /api/users/auth` are each limited to
+`AUTH_RATE_LIMIT_MAX` requests per IP per `AUTH_RATE_LIMIT_WINDOW_MS` (10 per
+minute by default), with separate counters so one cannot lock out the other.
+Exceeding it answers `429` with `{ "error": "Too many authentication attempts. Try again later." }`.
 The **event indexer** runs in-process, polling Soroban RPC for the configured
 contracts and applying events to the database. Failures are recorded in
 `IndexerDeadLetter` rather than dropped, and the cursor is persisted so restarts
@@ -424,6 +429,8 @@ not just a restart.
 | `ARBITRATOR_ADDRESSES` | for dispute resolution | Comma-separated panel addresses allowed to call `POST /api/disputes/:id/resolve`. **Empty disables the route** — it fails closed |
 | `CORS_ORIGIN` | for production | Comma-separated browser origins allowed to call the API. Empty allows every origin and logs a warning in production |
 | `INDEXER_POLL_INTERVAL_MS` | — | Defaults to `5000` |
+| `AUTH_RATE_LIMIT_MAX` | — | Per-IP budget for each wallet-auth route (`/api/users/challenge`, `/api/users/auth`), counted separately. Defaults to `10` |
+| `AUTH_RATE_LIMIT_WINDOW_MS` | — | Window for those budgets, in milliseconds. Defaults to `60000` |
 | `TRUST_PROXY` | — | Reverse proxy hop count (e.g. `1` behind Render/Heroku/Nginx) so rate limiting keys on real client IP. Defaults to `0` |
 | `PORT` | — | Defaults to `3000` |
 
