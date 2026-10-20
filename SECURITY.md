@@ -51,7 +51,8 @@ maintained against the code on `main` and distinguishes what the contracts
 *implement* from what the deployed testnet deployment *configures*:
 
 - **The arbitrator panel is trust-based, and testnet deploys it with one
-  member.** `dispute.init(arbitrators, threshold)` accepts an M-of-N panel, and
+  member.** `dispute.init(admin, arbitrators, threshold)` accepts an M-of-N panel,
+  managed by the configured admin, and
   `dispute.arbitrate` executes a split only once `threshold` approvals for that
   exact split exist (`contracts/dispute/src/lib.rs`). What remains limited: the
   deployed testnet configuration is a single arbitrator with `threshold = 1`
@@ -60,7 +61,7 @@ maintained against the code on `main` and distinguishes what the contracts
   a bad split loses nothing.
 - **A stalled dispute does not resolve itself.**
   `escrow.reclaim_after_dispute_timeout` is a timelocked escape hatch: after the
-  7-day deadline set by `open_dispute` (`escrow.dispute_deadline` view), the
+  configurable deadline set by `open_dispute` (`escrow.dispute_deadline` view), the
   client can reclaim unreleased funds, and a late ruling is then rejected
   because the escrow is no longer `Disputed`. What remains limited: nothing
   fires automatically at the deadline, and only the client may reclaim — the

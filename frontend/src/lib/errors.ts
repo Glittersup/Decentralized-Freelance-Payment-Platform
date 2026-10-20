@@ -41,7 +41,7 @@ const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
   14: "A numeric overflow occurred, or the contract is paused.",
   15: "That amount is more than what's left on the milestone.",
   16: "The dispute timeout hasn't been reached yet.",
-  18: "This contract is paused.",
+  18: "The dispute timeout must be greater than zero.",
 };
 
 /** Extract the `#N` discriminant from a Soroban contract error, if present. */

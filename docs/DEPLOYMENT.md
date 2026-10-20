@@ -45,7 +45,8 @@ XLM_CONTRACT_ID=CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC \
 ```
 
 This builds the Wasm, deploys escrow/dispute/reputation, initializes them
-(`escrow.init(admin, dispute)`, `dispute.init(arbitrators=[admin], threshold=1)`,
+(`escrow.init(admin, dispute)`,
+`dispute.init(admin, arbitrators=[admin], threshold=1)`,
 `reputation.init(admin, escrow)`), and writes:
 
 - `deployments/testnet.json` — the machine-readable record (the source of truth)
@@ -368,4 +369,3 @@ The containerised frontend image uses nginx as a reverse proxy for `/api/` traff
 - In the browser, API calls made to `/api/*` on port 5173 hit nginx on container port 8080, which reverse-proxies them directly to `http://backend:3000`.
 - In local development (`npm run dev`), Vite's dev server proxy similarly forwards `/api` to `http://localhost:3000`.
 - For external or custom deployments where the frontend and backend are hosted on separate domains, `VITE_API_URL` can be set to an absolute backend URL at build time.
-

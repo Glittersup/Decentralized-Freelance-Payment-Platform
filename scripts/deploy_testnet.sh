@@ -103,7 +103,7 @@ echo "==> Initializing contracts"
 # escrow is told which dispute contract is allowed to call resolve().
 invoke "$ESCROW_CONTRACT_ID" init --admin "$ADMIN" --dispute_contract "$DISPUTE_CONTRACT_ID"
 # dispute knows its arbitrator panel and M-of-N threshold.
-invoke "$DISPUTE_CONTRACT_ID" init --arbitrators "[\"$ADMIN\"]" --threshold 1
+invoke "$DISPUTE_CONTRACT_ID" init --admin "$ADMIN" --arbitrators "[\"$ADMIN\"]" --threshold 1
 # reputation verifies completions against the escrow contract.
 invoke "$REPUTATION_CONTRACT_ID" init --admin "$ADMIN" --escrow_contract "$ESCROW_CONTRACT_ID"
 

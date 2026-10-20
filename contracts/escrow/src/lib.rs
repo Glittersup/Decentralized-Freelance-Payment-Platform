@@ -35,8 +35,8 @@ const DAY_IN_LEDGERS: u32 = 17_280;
 const TTL_THRESHOLD: u32 = 30 * DAY_IN_LEDGERS;
 /// Extend a storage entry out to this many ledgers from now.
 const TTL_EXTEND_TO: u32 = 90 * DAY_IN_LEDGERS;
-/// Seconds after a dispute is opened before the client can reclaim.
-const DISPUTE_TIMEOUT_SECONDS: u64 = 7 * 24 * 60 * 60;
+/// Default seconds after a dispute is opened before the client can reclaim.
+const DEFAULT_DISPUTE_TIMEOUT_SECONDS: u64 = 7 * 24 * 60 * 60;
 /// Maximum number of milestones per escrow. Keeps every loop within the
 /// Soroban CPU budget and prevents `resolve`/`remaining` from being blocked
 /// by an unbounded list. Must match the cap enforced by the frontend.
@@ -53,6 +53,7 @@ pub enum DataKey {
     Admin,
     Paused,
     DisputeContract,
+    DisputeTimeoutSeconds,
     /// Timestamp after which a `Disputed` escrow may be reclaimed by the client.
     DisputeDeadline(u64),
 }
@@ -159,6 +160,28 @@ impl EscrowContract {
         env.storage()
             .instance()
             .set(&DataKey::DisputeContract, &dispute_contract);
+        env.storage().instance().set(
+            &DataKey::DisputeTimeoutSeconds,
+            &DEFAULT_DISPUTE_TIMEOUT_SECONDS,
+        );
+        Self::extend_instance(&env);
+        Ok(())
+    }
+
+    /// Set the dispute timeout in seconds. Admin only; the value must be positive.
+    pub fn set_dispute_timeout(env: Env, timeout_seconds: u64) -> Result<(), EscrowError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(EscrowError::NotInitialized)?;
+        admin.require_auth();
+        if timeout_seconds == 0 {
+            return Err(EscrowError::InvalidDisputeTimeout);
+        }
+        env.storage()
+            .instance()
+            .set(&DataKey::DisputeTimeoutSeconds, &timeout_seconds);
         Self::extend_instance(&env);
         Ok(())
     }
@@ -347,6 +370,9 @@ impl EscrowContract {
         if escrow.status != EscrowStatus::Created {
             return Err(EscrowError::InvalidStatus);
         }
+        if env.ledger().timestamp() >= escrow.expiry {
+            return Err(EscrowError::InvalidExpiry);
+        }
 
         // Effects before interaction.
         escrow.status = EscrowStatus::Active;
@@ -513,10 +539,17 @@ impl EscrowContract {
         Self::save(&env, escrow_id, &escrow);
 
         // Timelock: if the panel never rules, the client can reclaim after this.
+        // The fallback preserves the default for instances initialized before
+        // this setting was added.
+        let timeout_seconds: u64 = env
+            .storage()
+            .instance()
+            .get(&DataKey::DisputeTimeoutSeconds)
+            .unwrap_or(DEFAULT_DISPUTE_TIMEOUT_SECONDS);
         let deadline = env
             .ledger()
             .timestamp()
-            .checked_add(DISPUTE_TIMEOUT_SECONDS)
+            .checked_add(timeout_seconds)
             .ok_or(EscrowError::Overflow)?;
         let deadline_key = DataKey::DisputeDeadline(escrow_id);
         env.storage().persistent().set(&deadline_key, &deadline);
@@ -706,6 +739,18 @@ impl EscrowContract {
             .instance()
             .get(&DataKey::DisputeContract)
             .ok_or(EscrowError::NotInitialized)
+    }
+
+    /// Read the configured dispute timeout in seconds (view).
+    pub fn dispute_timeout_seconds(env: Env) -> Result<u64, EscrowError> {
+        if !env.storage().instance().has(&DataKey::Admin) {
+            return Err(EscrowError::NotInitialized);
+        }
+        Ok(env
+            .storage()
+            .instance()
+            .get(&DataKey::DisputeTimeoutSeconds)
+            .unwrap_or(DEFAULT_DISPUTE_TIMEOUT_SECONDS))
     }
 
     // -----------------------------------------------------------------------

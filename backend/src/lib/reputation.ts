@@ -22,7 +22,7 @@ export interface WeightedRating {
   /** The rater's user id; the anti-spam key is `(rater, ratee)`. */
   raterId: string;
   job: {
-    /** `Job.totalAmount`, a Prisma Decimal in whole units. */
+    /** `Job.totalAmount`, a Prisma Decimal in whole units of `asset`. */
     totalAmount: { toString(): string } | string | number;
     /** Asset symbol the job pays in (see `lib/assets.ts`). */
     asset: string;

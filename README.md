@@ -54,7 +54,7 @@ cd frontend && vercel deploy --prod
 
 1. **Client posts a job** — defines milestones (amount + deadline each) and funds the escrow contract.
 2. **Freelancer delivers work** — the client releases each milestone, fully or in part, as deliverables are approved.
-3. **Dispute resolution** — either party can freeze the escrow and raise a dispute; an M-of-N arbitrator panel distributes funds. If the panel stalls, a 7-day timelock unlocks an escape hatch — but only the client can use it.
+3. **Dispute resolution** — either party can freeze the escrow and raise a dispute; an M-of-N arbitrator panel distributes funds. If the panel stalls, a configurable timelock (7 days by default) unlocks an escape hatch — but only the client can use it.
 4. **Reputation** — both parties rate each other on-chain after completion; scores are permanent, verifiable, and weighted by job size.
 
 ## Project status
@@ -121,34 +121,34 @@ state machine, cross-contract calls, and the backend's role — see
 |----------|---------|
 | `init(admin, dispute_contract)` | One-shot setup; records the only contract allowed to call `resolve` |
 | `set_dispute_contract(dispute_contract)` | Admin-only, for rotating the dispute contract |
-| `pause()` / `unpause()` / `is_paused()` | Admin-only circuit breaker; while paused, escrow state changes and fund movements are blocked |
+| `set_dispute_timeout(timeout_seconds)` | Admin-only; configures the positive timeout for future disputes (default: 7 days) |
 | `create(client, freelancer, token, milestones, expiry)` | Creates an unfunded escrow and returns its id |
 | `update_milestones(escrow_id, milestones)` | Client-only milestone editing, before funding |
-| `fund(escrow_id)` | Moves the asset into escrow and activates the job |
+| `fund(escrow_id)` | Client-only; moves the asset into escrow before expiry and activates the job |
 | `release_milestone(escrow_id, milestone_index)` | Releases a whole milestone to the freelancer |
 | `release_partial(escrow_id, milestone_index, amount)` | Releases part of a milestone; tracks `released_amount` |
 | `open_dispute(escrow_id, initiator)` | Either participant freezes the escrow |
-| `reclaim_after_dispute_timeout(escrow_id)` | Client-only escape hatch once the 7-day dispute timelock passes |
+| `reclaim_after_dispute_timeout(escrow_id)` | Client-only escape hatch once the configured dispute timelock passes |
 | `resolve(escrow_id, client_share, freelancer_share)` | Dispute-contract-only; splits the funds |
 | `reclaim_expired(escrow_id)` | Client-only refund of the unreleased remainder after expiry; earlier partial releases are not clawed back |
-| `get(escrow_id)` / `dispute_deadline(escrow_id)` / `dispute_contract()` | Read-only views |
+| `get(escrow_id)` / `dispute_deadline(escrow_id)` / `dispute_contract()` / `dispute_timeout_seconds()` | Read-only views |
 
 ### `dispute`
 
 | Function | Purpose |
 |----------|---------|
-| `init(arbitrators, threshold)` | One-shot setup; validates a non-empty panel and `1 <= threshold <= len` |
-| `pause()` / `unpause()` / `is_paused()` | The first arbitrator is the admin; while paused, raising, approving, and arbitrating are blocked |
+| `init(arbitrators, threshold)` | One-shot setup; validates a non-empty panel of unique addresses and `1 <= threshold <= len` |
 | `raise(escrow_id, escrow_contract, raised_by, reason)` | Records the dispute and returns its id; cross-checks that the escrow is `Disputed` and `raised_by` is a party |
 | `approve(dispute_id, arbitrator, client_share, freelancer_share)` | Panel-only vote on a split; rejects negative shares only — the sum must equal the funds held, enforced later by `escrow.resolve` |
 | `arbitrate(dispute_id, client_share, freelancer_share)` | Executes the split once approvals *for that exact split* reach the threshold; cross-calls `escrow.resolve` |
-| `get(dispute_id)` / `dispute_for(escrow_id)` / `arbitrators()` / `threshold()` | Read-only views |
+| `get(dispute_id)` / `dispute_for(escrow_contract, escrow_id)` / `arbitrators()` / `threshold()` | Read-only views |
 
 ### `reputation`
 
 | Function | Purpose |
 |----------|---------|
 | `init(admin, escrow_contract)` | One-shot setup |
+| `set_escrow_contract(escrow_contract)` | Admin-only, for rotating the trusted escrow contract |
 | `submit(rater, ratee, escrow_id, score)` | 1–5 rating for a `Completed` job, one per pair per job |
 | `get_aggregate(address)` | Amount-weighted `{ total_score, weight, count }` |
 | `get_rating(rater, escrow_id)` | A single rating |
@@ -189,7 +189,7 @@ return an **unsigned XDR** for the client to sign, and never a key.
 | `POST` | `/api/escrow/build/fund` | ✅ | Build `escrow.fund` |
 | `POST` | `/api/escrow/build/release` | ✅ | Build `escrow.release_milestone` |
 | `POST` | `/api/escrow/build/reclaim` | ✅ | Build `escrow.reclaim_expired` |
-| `POST` | `/api/escrow/build/reclaim-dispute` | ✅ | Build `escrow.reclaim_after_dispute_timeout` (client, after the 7-day dispute timelock) |
+| `POST` | `/api/escrow/build/reclaim-dispute` | ✅ | Build `escrow.reclaim_after_dispute_timeout` (client, after the configured dispute timelock) |
 | `POST` | `/api/escrow/build/update-milestones` | ✅ | Build `escrow.update_milestones` (client, before funding) |
 | `PUT` | `/api/escrow/:escrowId/milestones` | ✅ | Record a confirmed milestone edit |
 | `GET` | `/api/escrow/:escrowId/receipt` | — | Printable receipt: job, milestones, releases, transaction links |

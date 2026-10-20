@@ -59,7 +59,7 @@ fn world() -> World {
     let mut panel = Vec::new(&env);
     panel.push_back(arbitrator.clone());
     EscrowContractClient::new(&env, &escrow).init(&arbitrator, &dispute);
-    DisputeContractClient::new(&env, &dispute).init(&panel, &1);
+    DisputeContractClient::new(&env, &dispute).init(&arbitrator, &panel, &1);
     ReputationContractClient::new(&env, &reputation).init(&arbitrator, &escrow);
 
     World {

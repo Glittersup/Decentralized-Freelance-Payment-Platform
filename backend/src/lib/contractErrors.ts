@@ -40,7 +40,7 @@ export const ESCROW_ERROR_MESSAGES: Record<number, string> = {
   15: "That amount is more than what's left on the milestone.",
   16: "The dispute timeout hasn't been reached yet.",
   17: "The milestone list exceeds the maximum allowed length (20 milestones).",
-  18: "This contract is paused.",
+  18: "The dispute timeout must be greater than zero.",
 };
 
 /** `DisputeError` discriminants from `contracts/dispute/src/lib.rs`. */

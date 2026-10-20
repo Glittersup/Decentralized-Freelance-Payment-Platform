@@ -690,7 +690,7 @@ export default function JobDetail() {
               {disputeDeadline !== null &&
                 (deadlinePassed ? (
                   <p className="muted">
-                    The 7-day dispute timelock has passed. Unreleased funds can be reclaimed.
+                    The dispute timelock has passed. Unreleased funds can be reclaimed.
                   </p>
                 ) : (
                   <p className="muted">

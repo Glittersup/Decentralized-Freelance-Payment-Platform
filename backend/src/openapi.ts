@@ -621,7 +621,7 @@ registry.registerPath({
   tags: ["Escrow"],
   summary: "Build escrow.reclaim_after_dispute_timeout",
   description:
-    "The client-only escape hatch once the 7-day dispute timelock passes with no ruling.",
+    "The client-only escape hatch once the configured dispute timelock passes with no ruling.",
   security: auth,
   request: { body: { content: { "application/json": { schema: escrowSyncSchema } } } },
   responses: { 200: json(unsignedTransaction, "Unsigned transaction"), 400: errors[400], 401: errors[401] },
