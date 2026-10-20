@@ -26,6 +26,9 @@ const schema = z.object({
   // Comma-separated Stellar addresses that may resolve disputes through the
   // API. Empty means "nobody", not "everybody": the route fails closed.
   ARBITRATOR_ADDRESSES: z.string().default(""),
+  // Comma-separated wallet addresses authorized to operate admin endpoints.
+  // Empty means "nobody", not "everybody".
+  INDEXER_ADMIN_ADDRESSES: z.string().default(""),
   // Comma-separated browser origins allowed to call the API (e.g. the Vercel
   // frontend). Empty means "no restriction" in development, but production
   // warns loudly because that allows every origin.

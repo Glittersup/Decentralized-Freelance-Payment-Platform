@@ -279,6 +279,8 @@ model IndexerDeadLetter {
   eventName   String?
   contractId  String?
   error       String
+  /// Encoded Soroban event required to retry the failed dispatch.
+  eventPayload Json?
   /// Incremented when the same event is recorded again (e.g. after a cursor rewind)
   attempts    Int      @default(1)
   firstSeenAt DateTime @default(now())

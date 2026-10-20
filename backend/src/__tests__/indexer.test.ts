@@ -21,7 +21,9 @@ import {
   handleRaised,
   handleRefunded,
   processContractEvents,
+  restoreDeadLetterEvent,
   resolveStartLedger,
+  serializeDeadLetterEvent,
   type DisputeLifecycleStores,
   type IndexerStore,
   type MilestoneReleaseJob,
@@ -90,6 +92,16 @@ const CONTRACT = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
 const ALICE = "GBPLJHDI6RPLS4EEJJTM7EVEV3UNTXLFAACWA63QSTHGLWH5RO3LQ75B";
 
 describe("event decoding", () => {
+  it("restores the original event from its dead-letter payload", () => {
+    const event = makeTopicEvent("milestones_updated", 7n, {
+      count: nativeToScVal(2, { type: "u32" }),
+    });
+    const restored = restoreDeadLetterEvent(serializeDeadLetterEvent(event));
+
+    expect(decodeEventName(restored)).toBe("milestones_updated");
+    expect(eventFields(restored)).toEqual(eventFields(event));
+  });
+
   it("decodes a captured milestone_released event", () => {
     const event = makeEvent("milestone_released", {
       escrow_id: nativeToScVal(7n, { type: "u64" }),
