@@ -360,6 +360,24 @@ VITE_XLM_CONTRACT_ID=CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC \
 These are the same variables as the [Frontend configuration](#frontend-frontendenv)
 table below; Vite inlines them, so changing one means rebuilding the image.
 
+The backend service receives the three contract ids the indexer subscribes to —
+`ESCROW_CONTRACT_ID`, `DISPUTE_CONTRACT_ID` and `REPUTATION_CONTRACT_ID` — plus
+the `XLM_CONTRACT_ID` / `USDC_CONTRACT_ID` SACs. They default to the deployment
+recorded in `deployments/testnet.json`, so the indexer runs in the local stack
+without extra setup. To follow a redeploy, pass the ids printed by
+`scripts/deploy_testnet.sh` through the environment:
+
+```bash
+ESCROW_CONTRACT_ID=C... \
+DISPUTE_CONTRACT_ID=C... \
+REPUTATION_CONTRACT_ID=C... \
+  docker compose up --build
+```
+
+Changing one of these is a restart, not a rebuild: the backend reads them at
+start-up. Without them the indexer logs `No contract IDs configured` and does
+nothing.
+
 ### Manual
 
 ```bash
@@ -416,7 +434,7 @@ not just a restart.
 | `NODE_ENV` | ✅ | `development` \| `production` \| `test` |
 | `STELLAR_NETWORK` | ✅ | `testnet` \| `mainnet` |
 | `SOROBAN_RPC_URL` | ✅ | `https://soroban-testnet.stellar.org` |
-| `ESCROW_CONTRACT_ID` | ✅ | Without it the indexer logs `No contract IDs configured` and does nothing |
+| `ESCROW_CONTRACT_ID` | ✅ | Without it the indexer logs `No contract IDs configured` and does nothing. `docker compose` defaults it to the testnet deployment in `deployments/testnet.json` |
 | `DISPUTE_CONTRACT_ID` | ✅ | As above |
 | `REPUTATION_CONTRACT_ID` | ✅ | As above |
 | `XLM_CONTRACT_ID` | to pay in XLM | Testnet XLM SAC |
