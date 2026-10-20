@@ -237,8 +237,10 @@ describe("Profile reputation", () => {
     render(<Profile />);
 
     // Waits for the form to populate
-    const emailInput = await screen.findByLabelText("Email Address");
-    expect((emailInput as HTMLInputElement).value).toBe("existing@example.com");
+    const emailInput = (await screen.findByLabelText("Email Address")) as HTMLInputElement;
+    await waitFor(() => {
+      expect(emailInput.value).toBe("existing@example.com");
+    });
 
     const disputeCheckbox = screen.getByLabelText(
       "A dispute is opened on one of my jobs",

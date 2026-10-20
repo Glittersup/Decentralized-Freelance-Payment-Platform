@@ -85,7 +85,6 @@ pub enum DataKey {
     Admin,
     /// The arbitrator panel, initially set in `init`.
     Arbitrators,
-    Admin,
     Paused,
     /// How many panel approvals a proposal needs (M-of-N).
     Threshold,
