@@ -31,6 +31,7 @@ const CLIENT = Keypair.random().publicKey();
 const ESCROW_CONTRACT = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
 
 process.env.ESCROW_CONTRACT_ID = ESCROW_CONTRACT;
+process.env.XLM_CONTRACT_ID = ESCROW_CONTRACT;
 process.env.JWT_SECRET = "test_secret_that_is_at_least_32_chars_long!";
 
 /** Every transaction the routes asked the chain to build, in order. */
@@ -38,9 +39,21 @@ const builtTxs = vi.hoisted(() => [] as unknown[]);
 
 const h = vi.hoisted(() => ({
   job: { update: vi.fn(), findUnique: vi.fn() },
+  buildCreateArgs: vi.fn(),
 }));
 
 vi.mock("../db", () => ({ prisma: { job: h.job } }));
+
+vi.mock("../lib/escrowArgs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/escrowArgs")>();
+  return {
+    ...actual,
+    buildCreateArgs: (...args: Parameters<typeof actual.buildCreateArgs>) => {
+      h.buildCreateArgs(...args);
+      return actual.buildCreateArgs(...args);
+    },
+  };
+});
 
 vi.mock("@stellar/stellar-sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@stellar/stellar-sdk")>();
@@ -104,6 +117,7 @@ beforeEach(() => {
   builtTxs.length = 0;
   h.job.update.mockReset();
   h.job.findUnique.mockReset();
+  h.buildCreateArgs.mockReset();
 });
 
 /** A bearer token the `requireAuth` middleware accepts for `address`. */
@@ -175,6 +189,46 @@ describe("escrowId validation — zero-based ids", () => {
     const res = await post("/build/fund", { escrowId: 0 });
     expect(res.status).toBe(200);
     expect(res.body.xdr).toBe("assembled-xdr");
+  });
+});
+
+describe("POST /api/escrow/build/create — job asset", () => {
+  const job = {
+    asset: "XLM",
+    client: { stellarAddress: CLIENT },
+    milestones: [{ amount: { toString: () => "0.1" }, deadline: null }],
+  };
+
+  it("encodes the configured SAC and asset precision from the job", async () => {
+    h.job.findUnique.mockResolvedValue(job);
+
+    const res = await post("/build/create", {
+      jobId: "job_1",
+      freelancerAddress: CLIENT,
+      expiryTimestamp: 2_000,
+    });
+
+    expect(res.status).toBe(200);
+    expect(h.buildCreateArgs).toHaveBeenCalledWith(
+      expect.objectContaining({
+        token: ESCROW_CONTRACT,
+        milestones: [{ amount: 1_000_000n, deadline: 2_000n }],
+      }),
+    );
+  });
+
+  it("rejects an asset not in the registry with a clear client error", async () => {
+    h.job.findUnique.mockResolvedValue({ ...job, asset: "DOGE" });
+
+    const res = await post("/build/create", {
+      jobId: "job_1",
+      freelancerAddress: CLIENT,
+      expiryTimestamp: 2_000,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Unknown asset: DOGE");
+    expect(h.buildCreateArgs).not.toHaveBeenCalled();
   });
 });
 

@@ -322,6 +322,8 @@ model AuthNonce {
   address   String   @id
   nonce     String
   expiresAt DateTime
+
+  @@index([expiresAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -394,4 +396,3 @@ model Deliverable {
   @@index([milestoneId])
   @@index([uploadedById])
 }
-

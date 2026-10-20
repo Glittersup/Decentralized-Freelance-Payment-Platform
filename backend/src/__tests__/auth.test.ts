@@ -20,22 +20,30 @@ class FakeNonceStore implements AuthNonceStore {
     return undefined;
   }
 
-  async findUnique(args: { where: { address: string } }): Promise<AuthNonceRow | null> {
-    return this.rows.get(args.where.address) ?? null;
-  }
-
-  async delete(args: { where: { address: string } }): Promise<unknown> {
-    this.rows.delete(args.where.address);
-    return undefined;
-  }
-
-  async deleteMany(args: { where: { expiresAt: { lt: Date } } }): Promise<unknown> {
+  async deleteMany(args: {
+    where: {
+      address?: string;
+      nonce?: string;
+      expiresAt?: { lte?: Date; gt?: Date };
+    };
+  }): Promise<{ count: number }> {
+    let count = 0;
     for (const [address, row] of this.rows) {
-      if (row.expiresAt.getTime() < args.where.expiresAt.lt.getTime()) {
+      const { where } = args;
+      const addressMatches = where.address === undefined || where.address === address;
+      const nonceMatches = where.nonce === undefined || where.nonce === row.nonce;
+      const expiryMatches =
+        where.expiresAt?.lte === undefined ||
+        row.expiresAt.getTime() <= where.expiresAt.lte.getTime();
+      const notExpired =
+        where.expiresAt?.gt === undefined ||
+        row.expiresAt.getTime() > where.expiresAt.gt.getTime();
+      if (addressMatches && nonceMatches && expiryMatches && notExpired) {
         this.rows.delete(address);
+        count += 1;
       }
     }
-    return undefined;
+    return { count };
   }
 }
 
@@ -66,8 +74,20 @@ describe("auth nonces", () => {
     const issuedAt = new Date("2026-01-01T00:00:00Z");
     const nonce = await issueNonce(db, ADDRESS, issuedAt);
 
-    const later = new Date(issuedAt.getTime() + NONCE_TTL_MS + 1);
+    const later = new Date(issuedAt.getTime() + NONCE_TTL_MS);
     expect(await consumeNonce(db, ADDRESS, nonce, later)).toBe(false);
+  });
+
+  it("allows only one concurrent consumer", async () => {
+    const db = new FakeNonceStore();
+    const now = new Date("2026-01-01T00:00:00Z");
+    const nonce = await issueNonce(db, ADDRESS, now);
+
+    const results = await Promise.all([
+      consumeNonce(db, ADDRESS, nonce, now),
+      consumeNonce(db, ADDRESS, nonce, now),
+    ]);
+    expect(results.filter(Boolean)).toHaveLength(1);
   });
 
   it("rejects a nonce issued for a different address", async () => {
