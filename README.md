@@ -136,7 +136,7 @@ state machine, cross-contract calls, and the backend's role — see
 
 | Function | Purpose |
 |----------|---------|
-| `init(arbitrators, threshold)` | One-shot setup; validates a non-empty panel and `1 <= threshold <= len` |
+| `init(arbitrators, threshold)` | One-shot setup; validates a non-empty panel of unique addresses and `1 <= threshold <= len` |
 | `raise(escrow_id, escrow_contract, raised_by, reason)` | Records the dispute and returns its id; cross-checks that the escrow is `Disputed` and `raised_by` is a party |
 | `approve(dispute_id, arbitrator, client_share, freelancer_share)` | Panel-only vote on a split; rejects negative shares only — the sum must equal the funds held, enforced later by `escrow.resolve` |
 | `arbitrate(dispute_id, client_share, freelancer_share)` | Executes the split once approvals *for that exact split* reach the threshold; cross-calls `escrow.resolve` |

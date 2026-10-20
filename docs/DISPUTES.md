@@ -5,7 +5,7 @@ a timelock escape hatch if they never do.
 
 ## Actors
 
-- **Panel** — a list of arbitrator addresses, set once at `dispute.init`.
+- **Panel** — a list of unique arbitrator addresses, set once at `dispute.init`.
   `threshold` (M) of the N panel members must approve a resolution.
 - **Parties** — the escrow's client and freelancer. Either may `raise` a dispute.
 - **Escrow contract** — holds the funds and is the only contract that can move

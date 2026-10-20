@@ -160,7 +160,7 @@ Details of the dispute panel and timelock are in
 | escrow | `reclaim_expired(escrow_id)` | client-only refund of the unreleased remainder after expiry; earlier releases are not clawed back |
 | escrow | `reclaim_after_dispute_timeout(escrow_id)` | client refund from `Disputed` once the dispute deadline passes |
 | escrow | `get(escrow_id)` / `dispute_contract()` / `dispute_deadline(escrow_id)` | views |
-| dispute | `init(arbitrators, threshold)` | one-time; every panel member authorizes |
+| dispute | `init(arbitrators, threshold)` | one-time; unique panel addresses, valid threshold, every panel member authorizes |
 | dispute | `raise(escrow_id, escrow_contract, raised_by, reason)` | verifies escrow is Disputed and caller is a party |
 | dispute | `approve(dispute_id, arbitrator, client_share, freelancer_share)` | panel-only; records an approval of a specific split |
 | dispute | `arbitrate(dispute_id, client_share, freelancer_share)` | needs `threshold` matching approvals; cross-calls `escrow.resolve` |
