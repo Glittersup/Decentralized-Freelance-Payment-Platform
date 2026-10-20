@@ -103,9 +103,8 @@ export const createProposalSchema = z.object({
 
 export const createDeliverableSchema = z.object({
   fileName: z.string().min(1).max(255),
-  fileUrl: z.string().min(1),
-  fileSize: z.number().int().nonnegative().optional(),
+  fileUrl: z.string().url(),
+  fileSize: z.number().int().positive().optional(),
   fileType: z.string().max(100).optional(),
-  description: z.string().max(2000).optional(),
+  description: z.string().max(1000).optional(),
 });
-
