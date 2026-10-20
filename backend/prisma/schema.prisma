@@ -104,6 +104,9 @@ model Milestone {
   /// (issue #41). Matches the `amount` field in the API request body.
   amount      Decimal
   description String?
+  /// True when the indexed chain event lacks per-milestone data and the
+  /// off-chain breakdown no longer matches the on-chain count and total.
+  isStale     Boolean         @default(false)
   status      MilestoneStatus @default(PENDING)
   deadline    DateTime?
   releasedAt  DateTime?
@@ -394,4 +397,3 @@ model Deliverable {
   @@index([milestoneId])
   @@index([uploadedById])
 }
-
