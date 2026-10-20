@@ -196,7 +196,7 @@ return an **unsigned XDR** for the client to sign, and never a key.
 | `GET` | `/api/disputes/:id` | — | Dispute detail |
 | `POST` | `/api/disputes/:id/resolve` | ✅ + arbitrator | Build `dispute.arbitrate` |
 | `POST` | `/api/reputation` | ✅ | Build `reputation.submit` |
-| `GET` | `/api/reputation/:address` | — | Aggregate reputation |
+| `GET` | `/api/reputation/:address` | — | Weighted aggregate reputation, mirroring `reputation.get_aggregate` |
 | `GET` | `/api/reputation/:address/ratings` | — | Individual ratings received (score, job, date) |
 
 ### Skills and categories
@@ -213,6 +213,11 @@ two ever drift apart.
 
 Rate limiting is 100 requests/minute per IP, and every request is logged as one
 structured JSON line (method, path, status, duration) unless `NODE_ENV=test`.
+The wallet-auth endpoints get a tighter, dedicated budget on top of that:
+`GET /api/users/challenge` and `POST /api/users/auth` are each limited to
+`AUTH_RATE_LIMIT_MAX` requests per IP per `AUTH_RATE_LIMIT_WINDOW_MS` (10 per
+minute by default), with separate counters so one cannot lock out the other.
+Exceeding it answers `429` with `{ "error": "Too many authentication attempts. Try again later." }`.
 The **event indexer** runs in-process, polling Soroban RPC for the configured
 contracts and applying events to the database. Failures are recorded in
 `IndexerDeadLetter` rather than dropped, and the cursor is persisted so restarts
@@ -360,6 +365,24 @@ VITE_XLM_CONTRACT_ID=CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC \
 These are the same variables as the [Frontend configuration](#frontend-frontendenv)
 table below; Vite inlines them, so changing one means rebuilding the image.
 
+The backend service receives the three contract ids the indexer subscribes to —
+`ESCROW_CONTRACT_ID`, `DISPUTE_CONTRACT_ID` and `REPUTATION_CONTRACT_ID` — plus
+the `XLM_CONTRACT_ID` / `USDC_CONTRACT_ID` SACs. They default to the deployment
+recorded in `deployments/testnet.json`, so the indexer runs in the local stack
+without extra setup. To follow a redeploy, pass the ids printed by
+`scripts/deploy_testnet.sh` through the environment:
+
+```bash
+ESCROW_CONTRACT_ID=C... \
+DISPUTE_CONTRACT_ID=C... \
+REPUTATION_CONTRACT_ID=C... \
+  docker compose up --build
+```
+
+Changing one of these is a restart, not a rebuild: the backend reads them at
+start-up. Without them the indexer logs `No contract IDs configured` and does
+nothing.
+
 ### Manual
 
 ```bash
@@ -416,7 +439,7 @@ not just a restart.
 | `NODE_ENV` | ✅ | `development` \| `production` \| `test` |
 | `STELLAR_NETWORK` | ✅ | `testnet` \| `mainnet` |
 | `SOROBAN_RPC_URL` | ✅ | `https://soroban-testnet.stellar.org` |
-| `ESCROW_CONTRACT_ID` | ✅ | Without it the indexer logs `No contract IDs configured` and does nothing |
+| `ESCROW_CONTRACT_ID` | ✅ | Without it the indexer logs `No contract IDs configured` and does nothing. `docker compose` defaults it to the testnet deployment in `deployments/testnet.json` |
 | `DISPUTE_CONTRACT_ID` | ✅ | As above |
 | `REPUTATION_CONTRACT_ID` | ✅ | As above |
 | `XLM_CONTRACT_ID` | to pay in XLM | Testnet XLM SAC |
@@ -424,6 +447,8 @@ not just a restart.
 | `ARBITRATOR_ADDRESSES` | for dispute resolution | Comma-separated panel addresses allowed to call `POST /api/disputes/:id/resolve`. **Empty disables the route** — it fails closed |
 | `CORS_ORIGIN` | for production | Comma-separated browser origins allowed to call the API. Empty allows every origin and logs a warning in production |
 | `INDEXER_POLL_INTERVAL_MS` | — | Defaults to `5000` |
+| `AUTH_RATE_LIMIT_MAX` | — | Per-IP budget for each wallet-auth route (`/api/users/challenge`, `/api/users/auth`), counted separately. Defaults to `10` |
+| `AUTH_RATE_LIMIT_WINDOW_MS` | — | Window for those budgets, in milliseconds. Defaults to `60000` |
 | `TRUST_PROXY` | — | Reverse proxy hop count (e.g. `1` behind Render/Heroku/Nginx) so rate limiting keys on real client IP. Defaults to `0` |
 | `PORT` | — | Defaults to `3000` |
 

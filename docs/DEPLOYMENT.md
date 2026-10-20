@@ -194,6 +194,7 @@ so migrations apply on boot. Attach a PostgreSQL instance and set:
 | `DEPLOYMENTS_FILE` | optional path to the deploy record for the startup freshness check; defaults to `deployments/testnet.json` |
 | `CORS_ORIGIN` | the Vercel origin, e.g. `https://your-app.vercel.app`. Empty allows every origin — production logs a warning |
 | `INDEXER_POLL_INTERVAL_MS` | `5000` is fine; raise it to reduce RPC traffic |
+| `AUTH_RATE_LIMIT_MAX` / `AUTH_RATE_LIMIT_WINDOW_MS` | Per-IP budget for each wallet-auth route, counted separately (default `10` per `60000` ms). Raise it only if a shared NAT makes legitimate logins collide |
 
 Any managed Postgres works. [Tiger Cloud](https://www.tigerdata.com/cloud) has a
 free tier (two services, 750 MB each) and speaks plain PostgreSQL, so Prisma
@@ -333,6 +334,32 @@ checklist, redeploy, and confirm the line is gone.
 
 Contract ids and `VITE_*` values are baked in at build time, so if you redeploy
 the contracts you must restart the backend and rebuild the frontend.
+
+### Contract ids in the compose stack
+
+`docker-compose.yml` passes the indexer's contract ids to the backend service:
+`ESCROW_CONTRACT_ID`, `DISPUTE_CONTRACT_ID`, `REPUTATION_CONTRACT_ID`, and the
+`XLM_CONTRACT_ID` / `USDC_CONTRACT_ID` SACs. Each has a default read from the
+deployment committed in [`deployments/testnet.json`](../deployments/testnet.json),
+so `docker compose up --build` indexes testnet without any extra configuration.
+
+To point the stack at another deployment — after redeploying the contracts, or at
+a fresh testnet deploy — export the ids before starting it (a root `.env` file
+works too):
+
+```bash
+ESCROW_CONTRACT_ID=$(jq -r .escrow_contract_id deployments/testnet.json) \
+DISPUTE_CONTRACT_ID=$(jq -r .dispute_contract_id deployments/testnet.json) \
+REPUTATION_CONTRACT_ID=$(jq -r .reputation_contract_id deployments/testnet.json) \
+  docker compose up --build
+```
+
+The backend reads them at start-up, so changing one needs a restart
+(`docker compose up -d backend`), not a rebuild. Check that the indexer picked
+them up with `docker compose logs backend | grep -i indexer`; without them it
+logs `No contract IDs configured` and does nothing. These are the same variables
+the Render deployment sets in its dashboard — `render.yaml` deliberately leaves
+them manual so a committed file cannot ship a stale id.
 
 ### Containerised API routing & reverse proxy
 

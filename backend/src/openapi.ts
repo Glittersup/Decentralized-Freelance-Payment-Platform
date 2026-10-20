@@ -760,11 +760,23 @@ registry.registerPath({
   method: "get",
   path: "/api/reputation/{address}",
   tags: ["Reputation"],
-  summary: "Get an address's aggregate reputation",
+  summary: "Get an address's weighted aggregate reputation",
+  description:
+    "Mirrors `reputation.get_aggregate`: each counted rating is weighted by its escrow's " +
+    "total amount, and only the first rating from a given rater counts. `totalScore` and " +
+    "`weight` are the contract's u64 fields as decimal strings; `averageScore` is " +
+    "`totalScore / weight` (0 when there are no counted ratings).",
   request: { params: z.object({ address: z.string() }) },
   responses: {
     200: json(
-      z.object({ address: z.string(), averageScore: z.number(), totalRatings: z.number().int() }),
+      z.object({
+        address: z.string(),
+        averageScore: z.number(),
+        totalScore: z.string(),
+        weight: z.string(),
+        count: z.number().int(),
+        totalRatings: z.number().int(),
+      }),
       "The aggregate",
     ),
   },
