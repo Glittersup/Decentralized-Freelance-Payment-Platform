@@ -155,7 +155,7 @@ reputationRouter.get("/:address", async (req, res, next) => {
       select: {
         score: true,
         raterId: true,
-        job: { select: { totalAmountUsdc: true, asset: true } },
+        job: { select: { totalAmount: true, asset: true } },
       },
       // Oldest first: the first rating from a rater is the one that counted.
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
