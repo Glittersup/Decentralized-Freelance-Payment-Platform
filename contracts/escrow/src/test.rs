@@ -16,7 +16,7 @@ use crate::{EscrowContract, EscrowContractClient, EscrowError, EscrowStatus, Mil
 use soroban_sdk::{
     testutils::{Address as _, Events as _, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
-    xdr::{self, Format, ReadXdr},
+    xdr::{self, Limits, ReadXdr},
     Address, Env, Map, Symbol, TryFromVal, TryIntoVal, Val, Vec,
 };
 
@@ -1123,22 +1123,27 @@ const UNSORTED_MILESTONES_XDR: &str = "AAAAEAAAAAEAAAACAAAAEQAAAAEAAAAEAAAADwAAA
 /// Call `create` with raw `ScVal` arguments, the way a client that built the
 /// XDR out of band (the backend, the frontend) submits it.
 fn create_raw(f: &Fixture, milestones_xdr: &str) -> Result<u64, std::string::String> {
-    let parsed = <xdr::ScVal as ReadXdr>::from_xdr(
-        &mut milestones_xdr.as_bytes(),
-        Format::Base64,
-    )
-    .map_err(|_| std::string::String::from("milestone XDR does not parse"))?;
+    let parsed = <xdr::ScVal as ReadXdr>::from_xdr_base64(milestones_xdr, Limits::none())
+        .map_err(|_| std::string::String::from("milestone XDR does not parse"))?;
 
-    let args: std::vec::Vec<xdr::ScVal> = std::vec![
-        f.client.clone().try_into_val(&f.env).unwrap(),
-        f.freelancer.clone().try_into_val(&f.env).unwrap(),
-        f.token.clone().try_into_val(&f.env).unwrap(),
-        parsed,
-        xdr::ScVal::U64(10_000),
-    ];
+    let milestones_val = Val::try_from_val(&f.env, &parsed)
+        .map_err(|_| std::string::String::from("milestones rejected: invalid Val"))?;
 
-    EscrowContractClient::create_raw(&f.env, &f.escrow, &args)
-        .map_err(|e| std::format!("create rejected the encoded milestones: {e:?}"))
+    let milestones = Vec::<Milestone>::try_from_val(&f.env, &milestones_val).map_err(|_| {
+        std::string::String::from("milestones rejected: cannot convert to Milestone vec")
+    })?;
+
+    let res = f
+        .c()
+        .try_create(&f.client, &f.freelancer, &f.token, &milestones, &10_000);
+
+    match res {
+        Ok(Ok(id)) => Ok(id),
+        Ok(Err(err)) => Err(std::format!("create rejected: {err:?}")),
+        Err(err) => Err(std::format!(
+            "create rejected with invocation error: {err:?}"
+        )),
+    }
 }
 
 #[test]
