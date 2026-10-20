@@ -1,12 +1,68 @@
 import { describe, it, expect } from "vitest";
-import { Keypair, scValToNative } from "@stellar/stellar-sdk";
+import { Keypair, scValToNative, xdr } from "@stellar/stellar-sdk";
 import {
   buildCreateArgs,
   buildUpdateMilestonesArgs,
   milestonesToScVal,
 } from "../lib/escrowArgs";
 
+/**
+ * The exact XDR `milestonesToScVal` must produce for this known input, pinned
+ * byte-for-byte. A round-trip through `scValToNative` cannot catch the two
+ * ways this encoding has silently broken real transactions:
+ *
+ * - **Map key order.** The Soroban runtime expects `ScMap` keys in ascending
+ *   order (that is what the Rust SDK emits for a `#[contracttype]` struct and
+ *   what base-layer `nativeToScVal` sorts to). Keys in field-declaration order
+ *   decode fine locally but can be rejected on-chain, after the fee is spent.
+ * - **Key type.** The contract's struct lookup is by `Symbol`; keys built as
+ *   `ScVal.scvString` (which is what `nativeToScVal` produces for a plain JS
+ *   object) decode to the same JS values and therefore pass a round-trip, but
+ *   the contract cannot read the fields from them.
+ *
+ * The pinned vector has symbol keys in sorted order: amount, deadline,
+ * released, released_amount. Regenerate it only for a deliberate, reviewed
+ * change to the contract's `Milestone` layout.
+ */
+const KNOWN_MILESTONES_XDR =
+  "AAAAEAAAAAEAAAACAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAA" +
+  "AAAAAAAAAAAAEsAAAADwAAAAhkZWFkbGluZQAAAAUAAAAAAAAAAAAAAA8AAAAIcmVs" +
+  "ZWFzZWQAAAAAAAAAAAAAAA8AAAAPcmVsZWFzZWRfYW1vdW50AAAAAAoAAAAAAAAAAA" +
+  "AAAAAAAAAAAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAA" +
+  "AAAAAAK8AAAADwAAAAhkZWFkbGluZQAAAAUAAAAAZVPxAAAAAA8AAAAIcmVsZWFzZW" +
+  "QAAAAAAAAAAAAAAA8AAAAPcmVsZWFzZWRfYW1vdW50AAAAAAoAAAAAAAAAAAAAAAAA" +
+  "AAAA";
+
+const KNOWN_MILESTONES = [
+  { amount: 300n, deadline: 0n },
+  { amount: 700n, deadline: 1_700_000_000n },
+];
+
 describe("milestonesToScVal", () => {
+  it("encodes the known input to the exact XDR the contract expects", () => {
+    expect(milestonesToScVal(KNOWN_MILESTONES).toXDR("base64")).toBe(
+      KNOWN_MILESTONES_XDR,
+    );
+  });
+
+  it("keys each milestone map by Symbol, in ascending field-name order", () => {
+    const [first] = milestonesToScVal(KNOWN_MILESTONES).vec() ?? [];
+    const entries = first?.map() ?? [];
+
+    expect(entries.map((entry) => entry.key().switch().name)).toEqual([
+      "scvSymbol",
+      "scvSymbol",
+      "scvSymbol",
+      "scvSymbol",
+    ]);
+    expect(entries.map((entry) => scValToNative(entry.key()))).toEqual([
+      "amount",
+      "deadline",
+      "released",
+      "released_amount",
+    ]);
+  });
+
   it("round-trips milestones with the contract's field names and types", () => {
     const decoded = scValToNative(
       milestonesToScVal([

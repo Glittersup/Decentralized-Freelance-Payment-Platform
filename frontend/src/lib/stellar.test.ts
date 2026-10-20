@@ -4,6 +4,28 @@ import { fromBaseUnits, toBaseUnits } from "./assets";
 import { fromStroops, milestonesToScVal, toStroops, type MilestoneInput } from "./stellar";
 
 describe("milestonesToScVal", () => {
+  it("encodes the known input to the exact XDR the contract expects", () => {
+    // Pinned byte-for-byte, and identical to the backend's `escrowArgs`
+    // golden: `useEscrow.createAndFund` builds its own `escrow.create` call
+    // from this helper, so a key that is reordered or no longer a Symbol
+    // round-trips fine here and is rejected on-chain, after the fee is spent.
+    const KNOWN_MILESTONES_XDR =
+      "AAAAEAAAAAEAAAACAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAA" +
+      "AAAAAAAAAAAAEsAAAADwAAAAhkZWFkbGluZQAAAAUAAAAAAAAAAAAAAA8AAAAIcmVs" +
+      "ZWFzZWQAAAAAAAAAAAAAAA8AAAAPcmVsZWFzZWRfYW1vdW50AAAAAAoAAAAAAAAAAA" +
+      "AAAAAAAAAAAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAA" +
+      "AAAAAAK8AAAADwAAAAhkZWFkbGluZQAAAAUAAAAAZVPxAAAAAA8AAAAIcmVsZWFzZW" +
+      "QAAAAAAAAAAAAAAA8AAAAPcmVsZWFzZWRfYW1vdW50AAAAAAoAAAAAAAAAAAAAAAAA" +
+      "AAAA";
+
+    const input: MilestoneInput[] = [
+      { amount: 300n, deadline: 0n },
+      { amount: 700n, deadline: 1_700_000_000n },
+    ];
+
+    expect(milestonesToScVal(input).toXDR("base64")).toBe(KNOWN_MILESTONES_XDR);
+  });
+
   it("round-trips milestones with the contract's field names", () => {
     const input: MilestoneInput[] = [
       { amount: 300n, deadline: 0n },
