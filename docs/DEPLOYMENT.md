@@ -194,6 +194,7 @@ so migrations apply on boot. Attach a PostgreSQL instance and set:
 | `DEPLOYMENTS_FILE` | optional path to the deploy record for the startup freshness check; defaults to `deployments/testnet.json` |
 | `CORS_ORIGIN` | the Vercel origin, e.g. `https://your-app.vercel.app`. Empty allows every origin — production logs a warning |
 | `INDEXER_POLL_INTERVAL_MS` | `5000` is fine; raise it to reduce RPC traffic |
+| `AUTH_RATE_LIMIT_MAX` / `AUTH_RATE_LIMIT_WINDOW_MS` | Per-IP budget for each wallet-auth route, counted separately (default `10` per `60000` ms). Raise it only if a shared NAT makes legitimate logins collide |
 
 Any managed Postgres works. [Tiger Cloud](https://www.tigerdata.com/cloud) has a
 free tier (two services, 750 MB each) and speaks plain PostgreSQL, so Prisma
