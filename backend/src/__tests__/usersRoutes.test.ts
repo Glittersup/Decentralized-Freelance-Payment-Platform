@@ -171,7 +171,7 @@ describe("GET /api/users/:address/reminders (#74)", () => {
         {
           index: 1,
           description: "Ship it",
-          amountUsdc: "2.5",
+          amount: "2.5",
           status: "PENDING",
           // Inside the 48h default horizon.
           deadline,
@@ -216,7 +216,7 @@ describe("GET /api/users/:address/reminders (#74)", () => {
         {
           index: 0,
           description: null,
-          amountUsdc: "1",
+          amount: "1",
           status: "PENDING",
           // Beyond the 48h default, inside a week.
           deadline: hoursFromNow(100),
@@ -232,7 +232,7 @@ describe("GET /api/users/:address/reminders (#74)", () => {
   it("falls back to the default horizon for an unusable ?withinHours", async () => {
     h.job.findMany.mockResolvedValue([
       openJob([
-        { index: 0, description: null, amountUsdc: "1", status: "PENDING", deadline: hoursFromNow(10) },
+        { index: 0, description: null, amount: "1", status: "PENDING", deadline: hoursFromNow(10) },
       ]),
     ]);
 

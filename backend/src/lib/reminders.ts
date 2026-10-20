@@ -30,7 +30,7 @@ export const MAX_HORIZON_HOURS = 24 * 30;
 export interface ReminderMilestone {
   index: number;
   description: string | null;
-  amountUsdc: unknown;
+  amount: unknown;
   status: string;
   deadline: Date | null;
 }
@@ -117,7 +117,7 @@ export function buildMilestoneReminders(
           job.escrowId === null || job.escrowId === undefined ? null : String(job.escrowId),
         milestoneIndex: milestone.index,
         description: milestone.description,
-        amount: String(milestone.amountUsdc),
+        amount: String(milestone.amount),
         deadline: milestone.deadline.toISOString(),
         kind,
         role,

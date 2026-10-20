@@ -12,13 +12,15 @@ import { isSkillTag, MAX_JOB_TAGS, SKILL_TAG_SLUGS } from "./tags";
 import { isValidStellarAddress } from "./stellarAddress";
 
 /**
- * A milestone amount: a positive number, or a positive decimal string.
+ * A milestone amount, in whole units of the job's asset (issue #41): a
+ * positive number, or a positive decimal string. The field is asset-neutral,
+ * so the same schema validates an XLM job and a USDC job.
  *
  * The string form lets a client send exactly what the user typed instead of a
  * binary float it round-tripped through `Number`, so the value the API stores
  * and sums is the value that was entered (see `sumAmounts` in lib/assets.ts).
  */
-const amountUsdcSchema = z.union([
+const amountSchema = z.union([
   z.number().positive(),
   z
     .string()
@@ -28,7 +30,7 @@ const amountUsdcSchema = z.union([
 
 export const milestoneSchema = z.object({
   description: z.string().optional(),
-  amountUsdc: amountUsdcSchema,
+  amount: amountSchema,
   deadline: z.string().datetime().optional(),
 });
 
@@ -96,7 +98,7 @@ export const listJobsQuerySchema = z.object({
 
 export const createProposalSchema = z.object({
   coverLetter: z.string().min(5).max(3000).optional(),
-  proposedRate: amountUsdcSchema.optional(),
+  proposedRate: amountSchema.optional(),
 });
 
 export const createDeliverableSchema = z.object({

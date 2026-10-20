@@ -192,7 +192,7 @@ export default function PostJob() {
             description: `Milestone ${i + 1}`,
             // Send the exact decimal string, not a float round-trip: the API
             // sums base units and stores this as the canonical amount.
-            amountUsdc: formatAmount(
+            amount: formatAmount(
               amountToBaseUnits(r.amount, asset.decimals),
               asset.decimals,
             ),

@@ -647,7 +647,7 @@ async function handleMilestonesUpdated(
   const decimals = ASSETS[String(job.asset).toUpperCase()]?.decimals ?? 7;
   await store.job.update({
     where: { id: job.id },
-    data: { totalAmountUsdc: fromBaseUnits(totalAmount, decimals) },
+    data: { totalAmount: fromBaseUnits(totalAmount, decimals) },
   });
 }
 
@@ -686,7 +686,7 @@ export interface MilestoneReleaseJob {
     index: number;
     status: MilestoneStatus;
     /** Prisma `Decimal` at runtime; anything stringifiable works here. */
-    amountUsdc: { toString(): string } | string | number;
+    amount: { toString(): string } | string | number;
     releasedAmount: { toString(): string } | string | number;
   }>;
 }
@@ -700,7 +700,7 @@ export interface MilestoneReleaseJob {
  *
  * So the handler accumulates: each event's `amount` is added to the milestone's
  * `releasedAmount`, and the milestone only flips to RELEASED once the running
- * total reaches `amountUsdc`. Comparing the event's amount to the milestone
+ * total reaches `amount`. Comparing the event's amount to the milestone
  * total instead would still be wrong for a partial-then-full sequence, because
  * `release_milestone` emits only the *remaining* amount after earlier partials.
  * The job completes only when every milestone is fully released.
@@ -726,7 +726,7 @@ export async function handleMilestoneReleased(
   // the asset's human units. Convert both to base units (exact bigint math),
   // then store the human-unit string back.
   const decimals = ASSETS[job.asset.toUpperCase()]?.decimals ?? 7;
-  const milestoneTotal = toBaseUnits(String(milestone.amountUsdc), decimals);
+  const milestoneTotal = toBaseUnits(String(milestone.amount), decimals);
   const releasedSoFar =
     toBaseUnits(String(milestone.releasedAmount ?? 0), decimals) + (asBigInt(data.amount) ?? 0n);
 

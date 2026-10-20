@@ -96,7 +96,7 @@ export async function notifyDisputeOpened(
  */
 export async function notifyMilestoneReleased(
   job: NotificationJob,
-  milestone: { index: number; amountUsdc?: string | number },
+  milestone: { index: number; amount?: string | number },
 ): Promise<void> {
   const provider = getEmailProvider();
   const parties = [job.client, job.freelancer].filter(
@@ -108,7 +108,7 @@ export async function notifyMilestoneReleased(
       `Hello,`,
       ``,
       `Milestone #${milestone.index + 1} for the job "${job.title}" has been released!`,
-      milestone.amountUsdc ? `Amount: ${milestone.amountUsdc}` : "",
+      milestone.amount ? `Amount: ${milestone.amount}` : "",
       ``,
       `Please visit the platform to review the updated job status.`,
     ]

@@ -89,7 +89,7 @@ function job(overrides: Partial<JobApi> = {}): JobApi {
     title: "Landing page redesign",
     status: "ACTIVE",
     asset: "XLM",
-    totalAmountUsdc: 1.5,
+    totalAmount: 1.5,
     client: { stellarAddress: CLIENT },
     ...overrides,
   };
@@ -262,7 +262,7 @@ describe("Dashboard job list", () => {
 
   it("shows an approximate fiat figure beside a job's total (#76)", async () => {
     h.rates = { XLM: 2 };
-    h.fetchJobs.mockResolvedValue([job({ totalAmountUsdc: 1.5, asset: "XLM" })]);
+    h.fetchJobs.mockResolvedValue([job({ totalAmount: 1.5, asset: "XLM" })]);
 
     render(<Dashboard />);
 
@@ -271,7 +271,7 @@ describe("Dashboard job list", () => {
   });
 
   it("leaves the total alone when no rate is available (#76)", async () => {
-    h.fetchJobs.mockResolvedValue([job({ totalAmountUsdc: 1.5, asset: "XLM" })]);
+    h.fetchJobs.mockResolvedValue([job({ totalAmount: 1.5, asset: "XLM" })]);
 
     render(<Dashboard />);
 

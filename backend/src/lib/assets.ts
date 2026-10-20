@@ -68,7 +68,7 @@ export function fromBaseUnits(base: bigint, decimals: number): string {
  * units.
  *
  * Money must never be added as JavaScript numbers: `0.1 + 0.2` is
- * `0.30000000000000004`, and because `Job.totalAmountUsdc` is a `DECIMAL(65,30)`
+ * `0.30000000000000004`, and because `Job.totalAmount` is a `DECIMAL(65,30)`
  * column that error is stored verbatim and returned to every client. Converting
  * each amount to base units first — an exact `bigint` — makes the sum exact.
  */

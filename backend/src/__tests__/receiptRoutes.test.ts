@@ -60,7 +60,7 @@ const receiptJob = () => ({
   description: "A new marketing site",
   status: "ACTIVE",
   asset: "USDC",
-  totalAmountUsdc: "2.5",
+  totalAmount: "2.5",
   createdAt: new Date("2026-01-01T00:00:00.000Z"),
   expiresAt: null,
   client: { stellarAddress: "GCLIENT", displayName: null },
@@ -69,7 +69,7 @@ const receiptJob = () => ({
     {
       index: 0,
       description: "Design",
-      amountUsdc: "2.5",
+      amount: "2.5",
       status: "RELEASED",
       deadline: null,
       releasedAt: new Date("2026-02-02T12:00:00.000Z"),

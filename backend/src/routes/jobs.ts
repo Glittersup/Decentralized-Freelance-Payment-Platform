@@ -82,9 +82,9 @@ jobsRouter.get("/", async (req, res, next) => {
       sort === "oldest"
         ? { createdAt: "asc" as const }
         : sort === "amount_desc"
-          ? { totalAmountUsdc: "desc" as const }
+          ? { totalAmount: "desc" as const }
           : sort === "amount_asc"
-            ? { totalAmountUsdc: "asc" as const }
+            ? { totalAmount: "asc" as const }
             : { createdAt: "desc" as const };
 
     const jobs = await prisma.job.findMany({
@@ -197,8 +197,8 @@ jobsRouter.post("/", requireAuth, validate(createJobSchema), async (req, res, ne
     // decimals as JavaScript numbers carries float error into the DECIMAL(65,30)
     // column: two `0.1` milestones became `0.30000000000000004`, which is what
     // GET /api/jobs then returned and the dashboard displayed.
-    const totalAmountUsdc = formatAmount(
-      sumAmounts(milestones.map((m) => m.amountUsdc), assetInfo.decimals),
+    const totalAmount = formatAmount(
+      sumAmounts(milestones.map((m) => m.amount), assetInfo.decimals),
       assetInfo.decimals,
     );
 
@@ -208,7 +208,7 @@ jobsRouter.post("/", requireAuth, validate(createJobSchema), async (req, res, ne
         description,
         asset: assetInfo.symbol,
         tags,
-        totalAmountUsdc,
+        totalAmount,
         clientId: client.id,
         expiresAt: expiresAt ? new Date(expiresAt) : undefined,
         milestones: {
@@ -216,8 +216,8 @@ jobsRouter.post("/", requireAuth, validate(createJobSchema), async (req, res, ne
             index: i,
             // Store each amount at the asset's own precision so the milestones
             // and the total are consistent with the on-chain base units.
-            amountUsdc: formatAmount(
-              toBaseUnits(m.amountUsdc, assetInfo.decimals),
+            amount: formatAmount(
+              toBaseUnits(m.amount, assetInfo.decimals),
               assetInfo.decimals,
             ),
             description: m.description,

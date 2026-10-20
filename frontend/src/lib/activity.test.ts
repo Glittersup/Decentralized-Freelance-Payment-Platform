@@ -20,7 +20,7 @@ function job(overrides: Partial<JobApi> = {}): JobApi {
     title: "Job",
     status: "ACTIVE",
     asset: "XLM",
-    totalAmountUsdc: 1,
+    totalAmount: 1,
     ...overrides,
   };
 }
@@ -80,9 +80,9 @@ describe("summarizeActivity", () => {
         job({
           status: "ACTIVE",
           milestones: [
-            { amountUsdc: "0.1", status: "RELEASED" },
-            { amountUsdc: "0.2", status: "RELEASED" },
-            { amountUsdc: "0.3", status: "PENDING" },
+            { amount: "0.1", status: "RELEASED" },
+            { amount: "0.2", status: "RELEASED" },
+            { amount: "0.3", status: "PENDING" },
           ],
         }),
       ],
@@ -101,12 +101,12 @@ describe("summarizeActivity", () => {
         job({
           id: "xlm",
           asset: "XLM",
-          milestones: [{ amountUsdc: "2", status: "RELEASED" }],
+          milestones: [{ amount: "2", status: "RELEASED" }],
         }),
         job({
           id: "usdc",
           asset: "USDC",
-          milestones: [{ amountUsdc: "10.5", status: "RELEASED" }],
+          milestones: [{ amount: "10.5", status: "RELEASED" }],
         }),
       ],
     });
@@ -118,7 +118,7 @@ describe("summarizeActivity", () => {
   });
 
   it("only counts funds as locked while the escrow is open", () => {
-    const unreleased = [{ amountUsdc: "4", status: "PENDING" }];
+    const unreleased = [{ amount: "4", status: "PENDING" }];
 
     const active = summarizeActivity({
       asClient: [job({ status: "FUNDED", milestones: unreleased })],
@@ -136,10 +136,10 @@ describe("summarizeActivity", () => {
   it("totals released funds from both roles", () => {
     const summary = summarizeActivity({
       asClient: [
-        job({ id: "c1", milestones: [{ amountUsdc: "1.25", status: "RELEASED" }] }),
+        job({ id: "c1", milestones: [{ amount: "1.25", status: "RELEASED" }] }),
       ],
       asFreelancer: [
-        job({ id: "f1", milestones: [{ amountUsdc: "0.75", status: "RELEASED" }] }),
+        job({ id: "f1", milestones: [{ amount: "0.75", status: "RELEASED" }] }),
       ],
     });
 
@@ -154,7 +154,7 @@ describe("summarizeActivity", () => {
       asFreelancer: [
         job({
           asset: "AQUA",
-          milestones: [{ amountUsdc: "1.0000001", status: "RELEASED" }],
+          milestones: [{ amount: "1.0000001", status: "RELEASED" }],
         }),
       ],
     });
@@ -166,7 +166,7 @@ describe("summarizeActivity", () => {
     const summary = summarizeActivity({
       asClient: [],
       asFreelancer: [
-        job({ asset: undefined, milestones: [{ amountUsdc: "3", status: "RELEASED" }] }),
+        job({ asset: undefined, milestones: [{ amount: "3", status: "RELEASED" }] }),
       ],
     });
 
@@ -189,7 +189,7 @@ describe("summarizeActivity", () => {
     const shared = job({
       id: "shared",
       status: "ACTIVE",
-      milestones: [{ amountUsdc: "5", status: "PENDING" }],
+      milestones: [{ amount: "5", status: "PENDING" }],
     });
 
     const summary = summarizeActivity({ asClient: [shared], asFreelancer: [shared] });
@@ -202,7 +202,7 @@ describe("summarizeActivity", () => {
   it("tolerates a numeric milestone amount", () => {
     const summary = summarizeActivity({
       asClient: [],
-      asFreelancer: [job({ milestones: [{ amountUsdc: 1.5, status: "RELEASED" }] })],
+      asFreelancer: [job({ milestones: [{ amount: 1.5, status: "RELEASED" }] })],
     });
 
     expect(summary.released).toEqual([{ symbol: "XLM", amount: "1.5" }]);

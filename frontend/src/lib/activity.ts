@@ -105,7 +105,7 @@ export function summarizeActivity({
     if (job.status === "COMPLETED") completedJobs += 1;
 
     for (const milestone of job.milestones ?? []) {
-      const base = toBaseUnits(String(milestone.amountUsdc), decimals);
+      const base = toBaseUnits(String(milestone.amount), decimals);
       if (milestone.status === MILESTONE_RELEASED) {
         addTo(released, symbol, base);
       } else if (isOpen) {

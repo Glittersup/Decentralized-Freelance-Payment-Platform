@@ -56,7 +56,10 @@ model Job {
   freelancerId    String?
   freelancer      User?     @relation("FreelancerJobs", fields: [freelancerId], references: [id])
 
-  totalAmountUsdc Decimal
+  /// Sum of the milestones, in whole units of `asset` — not USDC (issue #41).
+  /// The asset's decimals live in lib/assets.ts; a job paying XLM stores XLM
+  /// here, and a job paying a SAC stores that SAC's units.
+  totalAmount     Decimal
   milestones      Milestone[]
   disputes        Dispute[]
   ratings         Rating[]
@@ -97,12 +100,14 @@ model Milestone {
   jobId       String
   job         Job             @relation(fields: [jobId], references: [id])
   index       Int
-  amountUsdc  Decimal
+  /// This milestone's amount, in whole units of the job's `asset` — not USDC
+  /// (issue #41). Matches the `amount` field in the API request body.
+  amount      Decimal
   description String?
   status      MilestoneStatus @default(PENDING)
   deadline    DateTime?
   releasedAt  DateTime?
-  /// Amount released so far, in the same human units as `amountUsdc`.
+  /// Amount released so far, in the same human units as `amount`.
   ///
   /// `escrow.release_partial` pays a milestone down over several events, each
   /// emitting the same `milestone_released` event as a full release, so the

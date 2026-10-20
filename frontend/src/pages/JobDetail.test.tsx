@@ -336,7 +336,7 @@ describe("JobDetail rating", () => {
 
   it("persists the optional comment off-chain after the rating lands", async () => {
     h.fetchJobs.mockResolvedValue([
-      { id: "job-1", escrowId: 7, title: "t", status: "COMPLETED", totalAmountUsdc: 1 },
+      { id: "job-1", escrowId: 7, title: "t", status: "COMPLETED", totalAmount: 1 },
     ]);
     await renderCompleted();
 
@@ -568,7 +568,7 @@ describe("JobDetail opening a dispute", () => {
 
   it("freezes the escrow, raises the dispute, then records the reason and the id", async () => {
     h.fetchJobs.mockResolvedValue([
-      { id: "job-1", escrowId: 7, title: "t", status: "ACTIVE", totalAmountUsdc: 1 },
+      { id: "job-1", escrowId: 7, title: "t", status: "ACTIVE", totalAmount: 1 },
     ]);
     await renderActive();
 
@@ -595,7 +595,7 @@ describe("JobDetail opening a dispute", () => {
 
   it("says the dispute is on-chain when the off-chain record could not be saved", async () => {
     h.fetchJobs.mockResolvedValue([
-      { id: "job-1", escrowId: 7, title: "t", status: "ACTIVE", totalAmountUsdc: 1 },
+      { id: "job-1", escrowId: 7, title: "t", status: "ACTIVE", totalAmount: 1 },
     ]);
     h.createDispute.mockRejectedValue(new Error("Could not record the dispute (HTTP 500)"));
     await renderActive();

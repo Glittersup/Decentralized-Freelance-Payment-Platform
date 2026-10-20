@@ -439,8 +439,8 @@ export default function Dashboard() {
                   ) : (
                     "—"
                   )}{" "}
-                  · Total: {String(job.totalAmountUsdc)} {job.asset ?? ""}{" "}
-                  <FiatEstimate amount={String(job.totalAmountUsdc)} asset={job.asset ?? ""} />
+                  · Total: {String(job.totalAmount)} {job.asset ?? ""}{" "}
+                  <FiatEstimate amount={String(job.totalAmount)} asset={job.asset ?? ""} />
                 </span>
                 <br />
                 {job.escrowId !== null && job.escrowId !== undefined ? (
@@ -513,7 +513,7 @@ export default function Dashboard() {
                               step="any"
                               value={proposedRate}
                               onChange={(e) => setProposedRate(e.target.value)}
-                              placeholder={String(job.totalAmountUsdc)}
+                              placeholder={String(job.totalAmount)}
                             />
                           </label>
                         </p>

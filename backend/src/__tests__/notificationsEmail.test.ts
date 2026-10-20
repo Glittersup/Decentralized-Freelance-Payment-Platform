@@ -112,7 +112,7 @@ describe("Email Notifications System (Issue #67)", () => {
         },
       };
 
-      await notifyMilestoneReleased(job, { index: 1, amountUsdc: "150.00" });
+      await notifyMilestoneReleased(job, { index: 1, amount: "150.00" });
 
       expect(testProvider.sent).toHaveLength(1);
       expect(testProvider.sent[0].to).toBe("freelancer@example.com");

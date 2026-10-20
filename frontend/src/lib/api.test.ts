@@ -66,7 +66,7 @@ function jobRow(id: string, overrides: Partial<JobApi> = {}): JobApi {
     escrowId: null,
     title: `Job ${id}`,
     status: "ACTIVE",
-    totalAmountUsdc: "1",
+    totalAmount: "1",
     client: { stellarAddress: "GCLIENT" },
     ...overrides,
   };
@@ -491,7 +491,7 @@ describe("createJob", () => {
         title: "Redesign",
         description: "A longer description",
         asset: "XLM",
-        milestones: [{ amountUsdc: 1.5 }],
+        milestones: [{ amount: 1.5 }],
       },
       "jwt-1",
     );
