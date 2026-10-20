@@ -37,6 +37,7 @@ import { formatAmount, getAsset, sumAmounts, toBaseUnits, UnknownAssetError } fr
 import { buildEscrowReceipt } from "../lib/receipt";
 import { friendlyContractError } from "../lib/contractErrors";
 import { isValidStellarAddress } from "../lib/stellarAddress";
+import { FUNDED_JOB_STATUS } from "../lib/jobStatus";
 import { prisma } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { validate } from "../middleware/validate";
@@ -380,7 +381,12 @@ escrowRouter.post(
   },
 );
 
-// POST /api/escrow/sync/:jobId — called by frontend after tx confirmed
+// POST /api/escrow/sync/:jobId — called by frontend after create + fund confirm.
+//
+// The frontend posts this once both transactions are in, so the job is funded by
+// the time the link exists. The status written here is deliberately the same
+// constant the indexer's `funded` handler uses: writing a different one made a
+// job flip between FUNDED and ACTIVE whenever an event was replayed (issue #43).
 export const syncSchema = z.object({ escrowId: escrowIdSchema });
 
 escrowRouter.post("/sync/:jobId", requireAuth, validate(syncSchema), async (req, res, next) => {
@@ -398,7 +404,7 @@ escrowRouter.post("/sync/:jobId", requireAuth, validate(syncSchema), async (req,
 
     const updated = await prisma.job.update({
       where: { id: job.id },
-      data: { escrowId: BigInt(escrowId), status: "FUNDED" },
+      data: { escrowId: BigInt(escrowId), status: FUNDED_JOB_STATUS },
     });
     // If events arrived before the job was linked, reconcile any dead letters recorded for it
     await prisma.indexerDeadLetter

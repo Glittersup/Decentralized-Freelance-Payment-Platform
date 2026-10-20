@@ -22,6 +22,8 @@ import express from "express";
 import type { Server } from "node:http";
 import { Keypair } from "@stellar/stellar-sdk";
 import { SignJWT } from "jose";
+import { FUNDED_JOB_STATUS } from "../lib/jobStatus";
+import type { IndexerStore } from "../indexer";
 
 const CLIENT = Keypair.random().publicKey();
 // A real contract strkey: `new Contract(...)` validates the id before the
@@ -185,14 +187,35 @@ describe("POST /api/escrow/sync/:jobId — escrowId validation", () => {
 
   it("records a well-formed id", async () => {
     h.job.findUnique.mockResolvedValue({ id: "job_1", client: { stellarAddress: CLIENT } });
-    h.job.update.mockResolvedValue({ id: "job_1", escrowId: 7n, status: "FUNDED" });
+    h.job.update.mockResolvedValue({ id: "job_1", escrowId: 7n, status: FUNDED_JOB_STATUS });
 
     const res = await post("/sync/job_1", { escrowId: 7 });
 
     expect(res.status).toBe(200);
     expect(h.job.update).toHaveBeenCalledWith({
       where: { id: "job_1" },
-      data: { escrowId: 7n, status: "FUNDED" },
+      data: { escrowId: 7n, status: FUNDED_JOB_STATUS },
     });
+    // The response the client sees carries the same status the indexer's
+    // `funded` handler writes, so a subsequent indexer pass is a no-op (#43).
+    expect(res.body.status).toBe("ACTIVE");
+  });
+
+  it("agrees with the indexer's funded handler on one status", async () => {
+    // Simulates the event arriving after the sync: the job must not flip.
+    h.job.findUnique.mockResolvedValue({ id: "job_1", client: { stellarAddress: CLIENT } });
+    h.job.update.mockResolvedValue({ id: "job_1", escrowId: 7n, status: "ACTIVE" });
+
+    await post("/sync/job_1", { escrowId: 7 });
+    const synced = h.job.update.mock.calls.at(-1)?.[0].data.status;
+
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const store = { job: { updateMany } } as unknown as IndexerStore;
+    const { handleFunded } = await import("../indexer");
+    await handleFunded(7n, store);
+    const indexed = updateMany.mock.calls.at(-1)?.[0].data.status;
+
+    expect(synced).toBe(indexed);
+    expect(synced).toBe("ACTIVE");
   });
 });
