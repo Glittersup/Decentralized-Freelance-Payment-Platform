@@ -1123,11 +1123,8 @@ const UNSORTED_MILESTONES_XDR: &str = "AAAAEAAAAAEAAAACAAAAEQAAAAEAAAAEAAAADwAAA
 /// Call `create` with raw `ScVal` arguments, the way a client that built the
 /// XDR out of band (the backend, the frontend) submits it.
 fn create_raw(f: &Fixture, milestones_xdr: &str) -> Result<u64, std::string::String> {
-    let parsed = <xdr::ScVal as ReadXdr>::from_xdr(
-        &mut milestones_xdr.as_bytes(),
-        Format::Base64,
-    )
-    .map_err(|_| std::string::String::from("milestone XDR does not parse"))?;
+    let parsed = <xdr::ScVal as ReadXdr>::from_xdr(&mut milestones_xdr.as_bytes(), Format::Base64)
+        .map_err(|_| std::string::String::from("milestone XDR does not parse"))?;
 
     let args: std::vec::Vec<xdr::ScVal> = std::vec![
         f.client.clone().try_into_val(&f.env).unwrap(),
