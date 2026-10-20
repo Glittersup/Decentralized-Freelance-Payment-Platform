@@ -14,31 +14,16 @@ interface FakeUser {
 
 let fakeUsers: FakeUser[] = [];
 
+const h = vi.hoisted(() => ({
+  queryRaw: vi.fn(),
+  count: vi.fn(),
+}));
+
 vi.mock("../db", () => {
   return {
     prisma: {
       user: {
-        findMany: vi.fn(async (args?: { where?: { OR?: Array<{ stellarAddress?: { contains: string }; displayName?: { contains: string }; bio?: { contains: string } }> } }) => {
-          let list = [...fakeUsers];
-          if (args?.where?.OR) {
-            const searchOr = args.where.OR;
-            list = list.filter((user) => {
-              return searchOr.some((clause) => {
-                if (clause.stellarAddress?.contains) {
-                  return user.stellarAddress.toLowerCase().includes(clause.stellarAddress.contains.toLowerCase());
-                }
-                if (clause.displayName?.contains) {
-                  return Boolean(user.displayName?.toLowerCase().includes(clause.displayName.contains.toLowerCase()));
-                }
-                if (clause.bio?.contains) {
-                  return Boolean(user.bio?.toLowerCase().includes(clause.bio.contains.toLowerCase()));
-                }
-                return false;
-              });
-            });
-          }
-          return list;
-        }),
+        count: h.count,
         findUnique: vi.fn(async ({ where }: { where: { stellarAddress: string } }) => {
           const user = fakeUsers.find((u) => u.stellarAddress === where.stellarAddress);
           if (!user) return null;
@@ -51,6 +36,7 @@ vi.mock("../db", () => {
           };
         }),
       },
+      $queryRaw: h.queryRaw,
       authNonce: {
         findUnique: vi.fn(),
         upsert: vi.fn(),
@@ -89,6 +75,8 @@ describe("GET /api/users/freelancers (#68)", () => {
   });
 
   beforeEach(() => {
+    h.count.mockClear();
+    h.queryRaw.mockClear();
     fakeUsers = [
       {
         id: "user-1",
@@ -122,6 +110,70 @@ describe("GET /api/users/freelancers (#68)", () => {
         jobsAsFreelancer: [],
       },
     ];
+
+    h.count.mockImplementation(async ({ where }: {
+      where?: { OR?: Array<{ stellarAddress?: { contains: string }; displayName?: { contains: string }; bio?: { contains: string } }> };
+    }) => {
+      if (!where?.OR) return fakeUsers.length;
+      return fakeUsers.filter((user) =>
+        where.OR!.some((clause) =>
+          Object.values(clause).some((value) => {
+            const text = value?.contains.toLowerCase();
+            return text
+              ? [user.stellarAddress, user.displayName, user.bio]
+                  .some((field) => field?.toLowerCase().includes(text))
+              : false;
+          }),
+        ),
+      ).length;
+    });
+    h.queryRaw.mockImplementation(async (query: { sql: string; values: unknown[] }) => {
+      let users = [...fakeUsers];
+      if (query.sql.includes("ILIKE")) {
+        const term = String(query.values[0]).replaceAll("%", "").toLowerCase();
+        users = users.filter((user) =>
+          [user.stellarAddress, user.displayName, user.bio]
+            .some((field) => field?.toLowerCase().includes(term)),
+        );
+      }
+
+      const direction = query.sql.match(/"(?:completedJobsCount|createdAt|averageScore)" (ASC|DESC)/i)?.[1].toLowerCase() === "asc" ? 1 : -1;
+      if (query.sql.includes('"completedJobsCount"')) {
+        users.sort((a, b) => direction * (
+          a.jobsAsFreelancer.filter((job) => job.status === "COMPLETED").length -
+          b.jobsAsFreelancer.filter((job) => job.status === "COMPLETED").length
+        ));
+      } else if (query.sql.includes('"createdAt" ASC')) {
+        users.sort((a, b) => direction * (a.createdAt.getTime() - b.createdAt.getTime()));
+      } else {
+        users.sort((a, b) => {
+          const aRatings = a.ratingsReceived;
+          const bRatings = b.ratingsReceived;
+          const aAverage = aRatings.length ? aRatings.reduce((sum, rating) => sum + rating.score, 0) / aRatings.length : 0;
+          const bAverage = bRatings.length ? bRatings.reduce((sum, rating) => sum + rating.score, 0) / bRatings.length : 0;
+          return direction * (aAverage - bAverage);
+        });
+      }
+
+      const limit = Number(query.values.at(-2));
+      const offset = Number(query.values.at(-1));
+      return users.slice(offset, offset + limit).map((user) => {
+        const totalRatings = user.ratingsReceived.length;
+        return {
+          id: user.id,
+          stellarAddress: user.stellarAddress,
+          displayName: user.displayName,
+          bio: user.bio,
+          createdAt: user.createdAt,
+          averageScore: totalRatings
+            ? user.ratingsReceived.reduce((sum, rating) => sum + rating.score, 0) / totalRatings
+            : 0,
+          totalRatings,
+          completedJobsCount: user.jobsAsFreelancer.filter((job) => job.status === "COMPLETED").length,
+          totalJobsCount: user.jobsAsFreelancer.length,
+        };
+      });
+    });
   });
 
 interface FreelancerDirectoryResponse {
@@ -199,6 +251,10 @@ interface FreelancerDirectoryResponse {
     expect(data.total).toBe(3);
     expect(data.totalPages).toBe(2);
     expect(data.page).toBe(1);
+    const query = h.queryRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
+    expect(query.sql).toContain("LIMIT");
+    expect(query.sql).toContain("OFFSET");
+    expect(query.values.slice(-2)).toEqual([2, 0]);
 
     const resPage2 = await fetch(`${baseUrl}/api/users/freelancers?page=2&limit=2`);
     expect(resPage2.status).toBe(200);
