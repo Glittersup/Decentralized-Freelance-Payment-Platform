@@ -17,6 +17,7 @@ struct Fx {
     env: Env,
     escrow: Address,
     dispute: Address,
+    admin: Address,
     client: Address,
     freelancer: Address,
     token: Address,
@@ -57,18 +58,19 @@ fn setup_panel(arbitrator_count: u32, threshold: u32) -> Fx {
     for _ in 0..arbitrator_count {
         arbitrators.push_back(Address::generate(&env));
     }
-    let admin = arbitrators.get(0).unwrap();
+    let admin = Address::generate(&env);
 
     let escrow = env.register(EscrowContract, ());
     let dispute = env.register(DisputeContract, ());
 
     EscrowContractClient::new(&env, &escrow).init(&admin, &dispute);
-    DisputeContractClient::new(&env, &dispute).init(&arbitrators, &threshold);
+    DisputeContractClient::new(&env, &dispute).init(&admin, &arbitrators, &threshold);
 
     Fx {
         env,
         escrow,
         dispute,
+        admin,
         client,
         freelancer,
         token,
@@ -140,7 +142,9 @@ impl Fx {
 #[test]
 fn init_twice_is_rejected() {
     let f = setup();
-    let res = f.dispute_client().try_init(&f.arbitrators, &f.threshold);
+    let res = f
+        .dispute_client()
+        .try_init(&f.admin, &f.arbitrators, &f.threshold);
     assert!(matches!(res, Err(Ok(DisputeError::AlreadyInitialized))));
 }
 
@@ -149,7 +153,9 @@ fn init_rejects_empty_panel() {
     let env = Env::default();
     env.mock_all_auths();
     let dispute = env.register(DisputeContract, ());
-    let res = DisputeContractClient::new(&env, &dispute).try_init(&Vec::<Address>::new(&env), &1);
+    let admin = Address::generate(&env);
+    let res =
+        DisputeContractClient::new(&env, &dispute).try_init(&admin, &Vec::<Address>::new(&env), &1);
     assert!(matches!(res, Err(Ok(DisputeError::InvalidPanel))));
 }
 
@@ -158,25 +164,92 @@ fn init_rejects_bad_threshold() {
     let env = Env::default();
     env.mock_all_auths();
     let dispute = env.register(DisputeContract, ());
+    let admin = Address::generate(&env);
     let advocate = Address::generate(&env);
     let mut panel = Vec::new(&env);
     panel.push_back(advocate);
     // Threshold of 0 and more than the panel size are both invalid.
     for threshold in [0u32, 2] {
-        let res = DisputeContractClient::new(&env, &dispute).try_init(&panel, &threshold);
+        let res = DisputeContractClient::new(&env, &dispute).try_init(&admin, &panel, &threshold);
         assert!(matches!(res, Err(Ok(DisputeError::InvalidThreshold))));
     }
 }
 
 #[test]
 #[should_panic]
-fn init_requires_arbitrator_auth() {
-    // A stranger must not be able to claim a seat on the panel.
+fn init_requires_admin_auth() {
     let env = Env::default();
+    let dispute = env.register(DisputeContract, ());
+    let admin = Address::generate(&env);
+    let mut panel = Vec::new(&env);
+    panel.push_back(Address::generate(&env));
+    DisputeContractClient::new(&env, &dispute).init(&admin, &panel, &1);
+}
+
+#[test]
+fn panel_updates_replace_members_and_invalidate_existing_approvals() {
+    let f = setup();
+    let (_, dispute_id) = f.raised();
+    let old_arbitrator = f.arbitrator();
+    f.dispute_client()
+        .approve(&dispute_id, &old_arbitrator, &400, &600);
+
+    let new_arbitrator = Address::generate(&f.env);
+    let mut panel = Vec::new(&f.env);
+    panel.push_back(new_arbitrator.clone());
+    f.dispute_client().set_panel(&panel, &1);
+
+    assert_eq!(f.dispute_client().arbitrators(), panel);
+    assert_eq!(f.dispute_client().threshold(), 1);
+    let res = f.dispute_client().try_arbitrate(&dispute_id, &400, &600);
+    assert!(matches!(res, Err(Ok(DisputeError::InsufficientApprovals))));
+
+    f.dispute_client()
+        .approve(&dispute_id, &new_arbitrator, &400, &600);
+    f.dispute_client().arbitrate(&dispute_id, &400, &600);
+}
+
+#[test]
+fn panel_update_rejects_duplicate_members_and_invalid_threshold() {
+    let f = setup();
+    let arbitrator = Address::generate(&f.env);
+    let mut duplicate_panel = Vec::new(&f.env);
+    duplicate_panel.push_back(arbitrator.clone());
+    duplicate_panel.push_back(arbitrator);
+    let res = f.dispute_client().try_set_panel(&duplicate_panel, &1);
+    assert!(matches!(res, Err(Ok(DisputeError::InvalidPanel))));
+
+    let mut panel = Vec::new(&f.env);
+    panel.push_back(Address::generate(&f.env));
+    let res = f.dispute_client().try_set_panel(&panel, &0);
+    assert!(matches!(res, Err(Ok(DisputeError::InvalidThreshold))));
+}
+
+#[test]
+fn set_threshold_rejects_values_outside_panel_size() {
+    let f = setup();
+    for threshold in [0u32, 2] {
+        let res = f.dispute_client().try_set_threshold(&threshold);
+        assert!(matches!(res, Err(Ok(DisputeError::InvalidThreshold))));
+    }
+}
+
+#[test]
+fn set_threshold_updates_the_configured_value() {
+    let f = setup_panel(3, 1);
+    f.dispute_client().set_threshold(&2);
+    assert_eq!(f.dispute_client().threshold(), 2);
+}
+
+#[test]
+fn set_panel_before_init_is_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
     let dispute = env.register(DisputeContract, ());
     let mut panel = Vec::new(&env);
     panel.push_back(Address::generate(&env));
-    DisputeContractClient::new(&env, &dispute).init(&panel, &1);
+    let res = DisputeContractClient::new(&env, &dispute).try_set_panel(&panel, &1);
+    assert!(matches!(res, Err(Ok(DisputeError::NotInitialized))));
 }
 
 // ---------------------------------------------------------------------------
@@ -384,6 +457,16 @@ fn panel_and_threshold_are_readable() {
     let f = setup_panel(3, 2);
     assert_eq!(f.dispute_client().threshold(), 2);
     assert_eq!(f.dispute_client().arbitrators(), f.arbitrators);
+}
+
+#[test]
+#[should_panic]
+fn set_panel_requires_admin_auth() {
+    let f = setup();
+    let mut panel = Vec::new(&f.env);
+    panel.push_back(Address::generate(&f.env));
+    f.env.set_auths(&[]);
+    f.dispute_client().set_panel(&panel, &1);
 }
 
 #[test]
