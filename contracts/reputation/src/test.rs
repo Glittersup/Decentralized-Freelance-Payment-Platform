@@ -442,6 +442,56 @@ fn init_requires_admin_auth() {
 }
 
 #[test]
+fn set_escrow_contract_before_init_is_rejected() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let reputation = env.register(ReputationContract, ());
+    let escrow = Address::generate(&env);
+    let res = ReputationContractClient::new(&env, &reputation).try_set_escrow_contract(&escrow);
+    assert!(matches!(res, Err(Ok(ReputationError::NotInitialized))));
+}
+
+#[test]
+fn set_escrow_contract_updates_the_trusted_contract() {
+    let env = Env::default();
+    env.mock_all_auths();
+    env.ledger().set_timestamp(1_000);
+
+    let client = Address::generate(&env);
+    let freelancer = Address::generate(&env);
+    let admin = Address::generate(&env);
+    let unavailable_escrow = Address::generate(&env);
+    let escrow = env.register(MockEscrow, ());
+    MockEscrowClient::new(&env, &escrow).init(&EscrowData {
+        client: client.clone(),
+        freelancer: freelancer.clone(),
+        token: Address::generate(&env),
+        total_amount: 1_000,
+        milestones: Vec::new(&env),
+        status: EscrowStatus::Completed,
+        created_at: 0,
+        expiry: 10_000,
+    });
+
+    let reputation = env.register(ReputationContract, ());
+    let rep = ReputationContractClient::new(&env, &reputation);
+    rep.init(&admin, &unavailable_escrow);
+    rep.set_escrow_contract(&escrow);
+
+    rep.submit(&client, &freelancer, &0, &5);
+    assert_eq!(rep.get_aggregate(&freelancer).total_score, 5_000);
+}
+
+#[test]
+#[should_panic]
+fn set_escrow_contract_requires_admin_auth() {
+    let f = setup();
+    f.env.set_auths(&[]);
+    f.rep_client()
+        .set_escrow_contract(&Address::generate(&f.env));
+}
+
+#[test]
 #[should_panic]
 fn submit_requires_rater_auth() {
     // Complete a job while auths are mocked, then disable mocking so the

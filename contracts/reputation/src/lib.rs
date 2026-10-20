@@ -139,6 +139,21 @@ impl ReputationContract {
         Ok(())
     }
 
+    /// Change the trusted escrow contract. Admin only.
+    pub fn set_escrow_contract(env: Env, escrow_contract: Address) -> Result<(), ReputationError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(ReputationError::NotInitialized)?;
+        admin.require_auth();
+        env.storage()
+            .instance()
+            .set(&DataKey::EscrowContract, &escrow_contract);
+        Self::extend_instance(&env);
+        Ok(())
+    }
+
     /// Submit a rating after a job completes.
     ///
     /// Verifies with the escrow contract that the job is completed and that the
