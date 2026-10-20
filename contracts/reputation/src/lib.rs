@@ -231,13 +231,16 @@ impl ReputationContract {
         // cross-contract call and keeps `get_aggregate` a single storage read.
         let counted_key = DataKey::RatingCounted(ratee.clone(), rater.clone());
         if !env.storage().persistent().has(&counted_key) {
-            env.storage().persistent().set(&counted_key, &escrow_id);
-            env.storage()
-                .persistent()
-                .extend_ttl(&counted_key, TTL_THRESHOLD, TTL_EXTEND_TO);
-
-            let weight: u64 = escrow.total_amount.try_into().unwrap_or(0);
+            let weight: u64 = escrow
+                .total_amount
+                .try_into()
+                .map_err(|_| ReputationError::Overflow)?;
             if weight > 0 {
+                env.storage().persistent().set(&counted_key, &escrow_id);
+                env.storage()
+                    .persistent()
+                    .extend_ttl(&counted_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+
                 let mut aggregate = Self::get_aggregate(env.clone(), ratee.clone());
                 aggregate.total_score = aggregate
                     .total_score
