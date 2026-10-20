@@ -8,6 +8,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { networkPassphrase } from "../lib/stellar";
 import { WalletContext, freighter } from "./wallet-context";
+import { clearAuthToken } from "../lib/api";
 
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -31,7 +32,11 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const disconnect = useCallback(() => setPublicKey(null), []);
+  const disconnect = useCallback(() => {
+    if (publicKey) clearAuthToken(publicKey);
+    setPublicKey(null);
+    setError(null);
+  }, [publicKey]);
 
   const sign = useCallback(async (xdr: string) => {
     const api = freighter();
