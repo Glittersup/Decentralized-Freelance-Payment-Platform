@@ -17,7 +17,7 @@ use soroban_sdk::{
     testutils::{Address as _, Events as _, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
     xdr::{self, Limits, ReadXdr},
-    Address, Env, Map, Symbol, TryFromVal, TryIntoVal, Val, Vec,
+    Address, Env, Map, Symbol, TryFromVal, Val, Vec,
 };
 
 // ---------------------------------------------------------------------------
@@ -1102,23 +1102,14 @@ fn reclaim_expired_requires_client_auth() {
 /// `backend/src/__tests__/escrowArgs.test.ts` (and mirrored by the frontend's
 /// `milestonesToScVal`). The maps are keyed by `Symbol` with keys in
 /// **ascending order** — the layout a `#[contracttype]` struct decodes from.
-const BACKEND_MILESTONES_XDR: &str = "AAAAEAAAAAEAAAACAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAA\
-                                      AAAAAAAAAAAAAEsAAAADwAAAAhkZWFkbGluZQAAAAUAAAAAAAAAAAAAAA8AAAAIcmVs\
-                                      ZWFzZWQAAAAAAAAAAAAAAA8AAAAPcmVsZWFzZWRfYW1vdW50AAAAAAoAAAAAAAAAAA\
-                                      AAAAAAAAAAAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAA\
-                                      AAAAAAK8AAAADwAAAAhkZWFkbGluZQAAAAUAAAAAZVPxAAAAAA8AAAAIcmVsZWFzZW\
-                                      QAAAAAAAAAAAAAAA8AAAAPcmVsZWFzZWRfYW1vdW50AAAAAAoAAAAAAAAAAAAAAAAA\
-                                      AAAA";
+const BACKEND_MILESTONES_XDR: &str =
+    "AAAAEAAAAAEAAAACAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAAAAAAAAEsAAAADwAAAAhkZWFkbGluZQAAAAUAAAAAAAAAAAAAAA8AAAAIcmVsZWFzZWQAAAAAAAAAAAAAAA8AAAAPcmVsZWFzZWRfYW1vdW50AAAAAAoAAAAAAAAAAAAAAAAAAAAAAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAAAAAAAAK8AAAADwAAAAhkZWFkbGluZQAAAAUAAAAAZVPxAAAAAA8AAAAIcmVsZWFzZWQAAAAAAAAAAAAAAA8AAAAPcmVsZWFzZWRfYW1vdW50AAAAAAoAAAAAAAAAAAAAAAAAAAAA";
 
 /// The same two milestones encoded in the `Milestone` **declaration** order
 /// (`amount`, `released`, `released_amount`, `deadline`) — what the backend
 /// produced before the encoding was sorted. Kept here as the negative case.
-const UNSORTED_MILESTONES_XDR: &str = "AAAAEAAAAAEAAAACAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAA\
-                                       AAAAAAAAAAEsAAAADwAAAAhyZWxlYXNlZAAAAAAAAAAAAAAADwAAAA9yZWxlYXNlZF9h\
-                                       bW91bnQAAAAACgAAAAAAAAAAAAAAAAAAAAAAAAAPAAAACGRlYWRsaW5lAAAABQAAAAAA\
-                                       AAAAAAAAAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAAAAAA\
-                                       AAK8AAAADwAAAAhyZWxlYXNlZAAAAAAAAAAAAAAAADwAAAA9yZWxlYXNlZF9hbW91bnQA\
-                                       AAAACgAAAAAAAAAAAAAAAAAAAAAAAAAPAAAACGRlYWRsaW5lAAAABQAAAABlU/EA";
+const UNSORTED_MILESTONES_XDR: &str =
+    "AAAAEAAAAAEAAAACAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAAAAAAAAEsAAAADwAAAAhyZWxlYXNlZAAAAAAAAAAAAAAADwAAAA9yZWxlYXNlZF9hbW91bnQAAAAACgAAAAAAAAAAAAAAAAAAAAAAAAAPAAAACGRlYWRsaW5lAAAABQAAAAAAAAAAAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAAAAAAAAK8AAAADwAAAAhyZWxlYXNlZAAAAAAAAAAAAAAADwAAAA9yZWxlYXNlZF9hbW91bnQAAAAACgAAAAAAAAAAAAAAAAAAAAAAAAAPAAAACGRlYWRsaW5lAAAABQAAAABlU/EA";
 
 /// Call `create` with raw `ScVal` arguments, the way a client that built the
 /// XDR out of band (the backend, the frontend) submits it.
