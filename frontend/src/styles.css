@@ -175,6 +175,39 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.nav-brand {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  margin-right: 0.5rem;
+}
+
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brand-logo .logo-icon {
+  display: block;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.nav-brand:hover .logo-icon {
+  transform: scale(1.05);
+}
+
+.brand-name {
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, var(--text) 30%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 .nav a {
   color: var(--text);
   text-decoration: none;

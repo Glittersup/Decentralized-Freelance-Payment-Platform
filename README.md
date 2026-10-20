@@ -1,4 +1,8 @@
-# Stellar Freelance Payment Platform
+<p align="center">
+  <img src="./frontend/public/logo.svg" width="96" height="96" alt="Stellar Freelance Platform Logo" />
+</p>
+
+<h1 align="center">Stellar Freelance Payment Platform</h1>
 
 A decentralized freelance payment platform built on Stellar. Enables secure, fast, transparent, and low-cost transactions between freelancers and clients — no intermediaries, no borders.
 

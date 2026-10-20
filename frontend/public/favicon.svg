@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="starGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e0e7ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="48" height="48" rx="12" fill="url(#bgGrad)"/>
+  <path d="M 12 28 C 12 35, 36 37, 36 29" stroke="#ffffff" stroke-opacity="0.4" stroke-width="2" stroke-linecap="round"/>
+  <path d="M 36 20 C 36 13, 12 11, 12 19" stroke="#ffffff" stroke-opacity="0.4" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="12" cy="23.5" r="3" fill="#bae6fd" stroke="#0284c7" stroke-width="1.5"/>
+  <circle cx="36" cy="24.5" r="3" fill="#ddd6fe" stroke="#7c3aed" stroke-width="1.5"/>
+  <path d="M 24 10 C 24 18, 25 21, 35 24 C 25 27, 24 30, 24 38 C 24 30, 23 27, 13 24 C 23 21, 24 18, 24 10 Z" fill="url(#starGrad)"/>
+  <circle cx="24" cy="24" r="2" fill="#2563eb"/>
+</svg>
