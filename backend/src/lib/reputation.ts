@@ -22,8 +22,8 @@ export interface WeightedRating {
   /** The rater's user id; the anti-spam key is `(rater, ratee)`. */
   raterId: string;
   job: {
-    /** `Job.totalAmountUsdc`, a Prisma Decimal in whole units. */
-    totalAmountUsdc: { toString(): string } | string | number;
+    /** `Job.totalAmount`, a Prisma Decimal in whole units of `asset`. */
+    totalAmount: { toString(): string } | string | number;
     /** Asset symbol the job pays in (see `lib/assets.ts`). */
     asset: string;
   };
@@ -48,7 +48,7 @@ export interface WeightedAggregate {
 function ratingWeight(rating: WeightedRating): bigint {
   try {
     const { decimals } = getAsset(rating.job.asset);
-    return toBaseUnits(rating.job.totalAmountUsdc.toString(), decimals);
+    return toBaseUnits(rating.job.totalAmount.toString(), decimals);
   } catch {
     return 0n;
   }

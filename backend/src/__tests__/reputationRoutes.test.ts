@@ -265,7 +265,7 @@ describe("GET /api/reputation/:address — weighted aggregate", () => {
   const rating = (score: number, raterId: string, amount: string, asset = "USDC") => ({
     score,
     raterId,
-    job: { totalAmountUsdc: amount, asset },
+    job: { totalAmount: amount, asset },
   });
 
   it("weights each rating by its escrow's total amount", async () => {

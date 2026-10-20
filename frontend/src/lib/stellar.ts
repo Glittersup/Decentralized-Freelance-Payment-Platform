@@ -153,11 +153,22 @@ export interface MilestoneInput {
 /**
  * Encode a list of milestones as the `Vec<Milestone>` the contract expects.
  * Soroban structs are maps keyed by field-name symbols.
+ *
+ * Entries are emitted in **ascending key order** (`amount`, `deadline`,
+ * `released`, `released_amount`): that is the order the Rust SDK produces for a
+ * `#[contracttype]` struct and the order `nativeToScVal` sorts to, because the
+ * Soroban runtime expects map keys in sorted order. Field-declaration order
+ * round-trips fine in tests but can be rejected on-chain, after the fee is
+ * spent — the backend's `lib/escrowArgs.ts` mirrors this shape exactly.
  */
 export function milestonesToScVal(milestones: MilestoneInput[]): xdr.ScVal {
   const encoded = milestones.map((m) =>
     xdr.ScVal.scvMap([
       new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol("amount"), val: scI128(m.amount) }),
+      new xdr.ScMapEntry({
+        key: xdr.ScVal.scvSymbol("deadline"),
+        val: scU64(m.deadline),
+      }),
       new xdr.ScMapEntry({
         key: xdr.ScVal.scvSymbol("released"),
         val: xdr.ScVal.scvBool(false),
@@ -165,10 +176,6 @@ export function milestonesToScVal(milestones: MilestoneInput[]): xdr.ScVal {
       new xdr.ScMapEntry({
         key: xdr.ScVal.scvSymbol("released_amount"),
         val: scI128(0n),
-      }),
-      new xdr.ScMapEntry({
-        key: xdr.ScVal.scvSymbol("deadline"),
-        val: scU64(m.deadline),
       }),
     ]),
   );
