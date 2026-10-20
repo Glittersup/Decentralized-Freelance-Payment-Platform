@@ -117,7 +117,10 @@ beforeEach(() => {
   h.api.fetchRatingsReceived.mockReset();
   h.api.fetchRatingsReceived.mockResolvedValue([]);
   h.api.fetchTransactions.mockReset();
-  h.api.fetchTransactions.mockResolvedValue([]);
+  h.api.fetchTransactions.mockResolvedValue({
+    data: [],
+    pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+  });
   h.api.fetchUserProfile.mockReset();
   h.api.fetchUserProfile.mockResolvedValue(null);
   h.api.updateUserProfile.mockReset();
@@ -365,17 +368,20 @@ describe("Profile rating breakdown (#69)", () => {
 
 describe("Profile transaction history (#72)", () => {
   it("lists escrow, action, amount and an explorer link per indexed event", async () => {
-    h.api.fetchTransactions.mockResolvedValue([
-      transaction(),
-      transaction({
-        id: "evt-9",
-        escrowId: "7",
-        action: "created",
-        amount: null,
-        txHash: "ffff0000aaaa",
-        ledger: 9,
-      }),
-    ]);
+    h.api.fetchTransactions.mockImplementation(async (_address, page = 1) => ({
+      data: [
+        transaction(),
+        transaction({
+          id: "evt-9",
+          escrowId: "7",
+          action: "created",
+          amount: null,
+          txHash: "ffff0000aaaa",
+          ledger: 9,
+        }),
+      ],
+      pagination: { page, limit: 20, total: 21, totalPages: 2 },
+    }));
 
     render(<Profile />);
 
@@ -389,7 +395,15 @@ describe("Profile transaction history (#72)", () => {
     expect(screen.getByText("—")).toBeTruthy();
     const explorer = screen.getByRole("link", { name: "abc123def456…" });
     expect(explorer.getAttribute("href")).toContain("/tx/abc123def4567890");
-    expect(h.api.fetchTransactions).toHaveBeenCalledWith(ADDRESS);
+    expect(h.api.fetchTransactions).toHaveBeenCalledWith(ADDRESS, 1);
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+    expect(
+      await screen.findByText(
+        (_content, element) =>
+          element?.textContent?.replace(/\s+/g, " ").trim() === "Page 2 of 2",
+      ),
+    ).toBeTruthy();
+    expect(h.api.fetchTransactions).toHaveBeenLastCalledWith(ADDRESS, 2);
   });
 
   it("shows an empty state when there is no on-chain activity", async () => {
@@ -398,4 +412,3 @@ describe("Profile transaction history (#72)", () => {
     expect(await screen.findByText("No on-chain activity yet.")).toBeTruthy();
   });
 });
-

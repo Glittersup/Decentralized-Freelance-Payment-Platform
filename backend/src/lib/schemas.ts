@@ -96,6 +96,11 @@ export const listJobsQuerySchema = z.object({
   limit: z.coerce.number().int().positive().max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
 });
 
+export const transactionHistoryQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
+});
+
 export const createProposalSchema = z.object({
   coverLetter: z.string().min(5).max(3000).optional(),
   proposedRate: amountSchema.optional(),

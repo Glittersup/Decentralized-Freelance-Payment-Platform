@@ -31,6 +31,7 @@ import {
   createDeliverableSchema,
   createJobSchema,
   createProposalSchema,
+  transactionHistoryQuerySchema,
 } from "./lib/schemas";
 import { authSchema, updateSchema } from "./routes/users";
 import {
@@ -335,22 +336,33 @@ registry.registerPath({
   path: "/api/users/{address}/transactions",
   tags: ["Users"],
   summary: "On-chain history for the user's escrows",
-  request: { params: z.object({ address: z.string() }) },
+  request: {
+    params: z.object({ address: z.string() }),
+    query: transactionHistoryQuerySchema,
+  },
   responses: {
     200: json(
-      z.array(
-        z.object({
-          id: z.string(),
-          escrowId: z.string(),
-          action: z.string(),
-          amount: z.string().nullable(),
-          asset: z.string().nullable(),
-          txHash: z.string().nullable(),
-          ledger: z.number().int(),
-          createdAt: z.string().datetime(),
+      z.object({
+        data: z.array(
+          z.object({
+            id: z.string(),
+            escrowId: z.string(),
+            action: z.string(),
+            amount: z.string().nullable(),
+            asset: z.string().nullable(),
+            txHash: z.string().nullable(),
+            ledger: z.number().int(),
+            createdAt: z.string().datetime(),
+          }),
+        ),
+        pagination: z.object({
+          page: z.number().int(),
+          limit: z.number().int(),
+          total: z.number().int(),
+          totalPages: z.number().int(),
         }),
-      ),
-      "Transaction history events",
+      }),
+      "Paginated transaction history",
     ),
   },
 });

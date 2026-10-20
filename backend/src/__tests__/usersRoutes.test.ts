@@ -15,7 +15,7 @@ import type { Server } from "node:http";
 
 const h = vi.hoisted(() => ({
   job: { findMany: vi.fn() },
-  chainEvent: { findMany: vi.fn() },
+  chainEvent: { findMany: vi.fn(), count: vi.fn() },
 }));
 
 vi.mock("../db", () => ({
@@ -57,6 +57,8 @@ beforeEach(() => {
   h.job.findMany.mockResolvedValue([]);
   h.chainEvent.findMany.mockReset();
   h.chainEvent.findMany.mockResolvedValue([]);
+  h.chainEvent.count.mockReset();
+  h.chainEvent.count.mockResolvedValue(0);
 });
 
 async function get(path: string) {
@@ -78,6 +80,7 @@ describe("GET /api/users/:address/transactions", () => {
         createdAt: new Date("2026-01-02T03:04:05.000Z"),
       },
     ]);
+    h.chainEvent.count.mockResolvedValue(1);
 
     const res = await get(`/${USER}/transactions`);
 
@@ -95,22 +98,26 @@ describe("GET /api/users/:address/transactions", () => {
     });
     expect(h.chainEvent.findMany).toHaveBeenCalledWith({
       where: { escrowId: { in: [7n] } },
-      orderBy: { ledger: "desc" },
-      take: 200,
+      orderBy: [{ ledger: "desc" }, { id: "desc" }],
+      skip: 0,
+      take: 20,
     });
-    expect(res.body).toEqual([
-      {
-        id: "evt-42",
-        escrowId: "7",
-        action: "milestone_released",
-        // 3000000 base units of a 7-decimal asset, not the raw figure.
-        amount: "0.3",
-        asset: "USDC",
-        txHash: "abc123",
-        ledger: 42,
-        createdAt: "2026-01-02T03:04:05.000Z",
-      },
-    ]);
+    expect(res.body).toEqual({
+      data: [
+        {
+          id: "evt-42",
+          escrowId: "7",
+          action: "milestone_released",
+          // 3000000 base units of a 7-decimal asset, not the raw figure.
+          amount: "0.3",
+          asset: "USDC",
+          txHash: "abc123",
+          ledger: 42,
+          createdAt: "2026-01-02T03:04:05.000Z",
+        },
+      ],
+      pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+    });
   });
 
   it("skips events that move nothing, leaving the amount null", async () => {
@@ -129,7 +136,7 @@ describe("GET /api/users/:address/transactions", () => {
 
     const res = await get(`/${USER}/transactions`);
 
-    const [row] = res.body as Array<{ amount: string | null; asset: string | null }>;
+    const [row] = (res.body as { data: Array<{ amount: string | null; asset: string | null }> }).data;
     expect(row.amount).toBeNull();
     expect(row.asset).toBe("XLM");
   });
@@ -142,8 +149,38 @@ describe("GET /api/users/:address/transactions", () => {
     const res = await get(`/${USER}/transactions`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([]);
+    expect(res.body).toEqual({
+      data: [],
+      pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+    });
     expect(h.chainEvent.findMany).not.toHaveBeenCalled();
+  });
+
+  it("pages past the first 200 events and reports totals", async () => {
+    h.job.findMany.mockResolvedValue([{ escrowId: 7n, asset: "USDC" }]);
+    h.chainEvent.count.mockResolvedValue(205);
+    h.chainEvent.findMany.mockResolvedValue([]);
+
+    const res = await get(`/${USER}/transactions?page=11&limit=20`);
+
+    expect(res.status).toBe(200);
+    expect(h.chainEvent.findMany).toHaveBeenCalledWith({
+      where: { escrowId: { in: [7n] } },
+      orderBy: [{ ledger: "desc" }, { id: "desc" }],
+      skip: 200,
+      take: 20,
+    });
+    expect(res.body).toEqual({
+      data: [],
+      pagination: { page: 11, limit: 20, total: 205, totalPages: 11 },
+    });
+  });
+
+  it("rejects invalid pagination values", async () => {
+    const res = await get(`/${USER}/transactions?page=0&limit=101`);
+
+    expect(res.status).toBe(400);
+    expect(h.job.findMany).not.toHaveBeenCalled();
   });
 });
 

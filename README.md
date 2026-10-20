@@ -174,7 +174,7 @@ return an **unsigned XDR** for the client to sign, and never a key.
 | `GET` | `/api/users/challenge` | — | Issue a single-use nonce for SEP-53 signing |
 | `POST` | `/api/users/auth` | — | Verify the signed message, return a JWT |
 | `GET` | `/api/users/:address` | — | Public profile |
-| `GET` | `/api/users/:address/transactions` | — | Indexed on-chain history for the address's escrows, with explorer links |
+| `GET` | `/api/users/:address/transactions?page=1&limit=20` | — | Paginated indexed on-chain history for the address's escrows, with explorer links and totals |
 | `GET` | `/api/users/:address/reminders` | — | Milestone deadlines that are overdue or due soon (`?withinHours=`) |
 | `PUT` | `/api/users/me` | ✅ | Update your own profile |
 | `GET` | `/api/jobs` | — | List jobs with status + `tag` filters and pagination |
