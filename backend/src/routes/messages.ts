@@ -5,7 +5,7 @@
  *
  * Routes:
  *   GET  /api/messages/unread         — unread counts per job, plus a total
- *   GET  /api/messages/:jobId         — the conversation, oldest first
+ *   GET  /api/messages/:jobId         — the latest messages, oldest first
  *   POST /api/messages/:jobId         — send a message
  *   POST /api/messages/:jobId/read    — mark the other party's messages read
  *
@@ -28,6 +28,11 @@ export const messagesRouter = Router();
 /** A message body is a chat line, not a document. */
 export const sendMessageSchema = z.object({
   body: z.string().trim().min(1, "A message cannot be empty").max(2000),
+});
+
+const getMessagesQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  before: z.string().min(1).optional(),
 });
 
 /** The job plus whichever of its two participants the caller is. */
@@ -110,12 +115,18 @@ messagesRouter.get("/:jobId", requireAuth, async (req, res, next) => {
     const address = res.locals.stellarAddress;
     await loadParticipantJob(req.params.jobId, address);
 
-    const messages = await prisma.message.findMany({
+    const query = getMessagesQuerySchema.safeParse(req.query);
+    if (!query.success) throw new AppError(400, "Invalid message pagination parameters");
+    const { limit, before } = query.data;
+
+    const rows = await prisma.message.findMany({
       where: { jobId: req.params.jobId },
-      orderBy: { createdAt: "asc" },
+      ...(before ? { cursor: { id: before }, skip: 1 } : {}),
+      take: limit,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: { sender: { select: { stellarAddress: true, displayName: true } } },
     });
-    res.json(messages);
+    res.json(rows.reverse());
   } catch (err) {
     next(err);
   }

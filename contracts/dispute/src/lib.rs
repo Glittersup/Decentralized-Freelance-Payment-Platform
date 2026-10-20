@@ -181,32 +181,13 @@ impl DisputeContract {
                 arbitrator.require_auth();
             }
         }
-        env.storage().instance().set(&DataKey::Admin, &admin);
-        env.storage()
-            .instance()
-            .set(&DataKey::Arbitrators, &arbitrators);
-        env.storage()
-            .instance()
-            .set(&DataKey::Threshold, &threshold);
-        env.storage().instance().set(&DataKey::PanelVersion, &0u32);
-        Self::extend_instance(&env);
-        Ok(())
-    }
-
-    /// Replace the arbitrator panel and threshold. Admin and new members must
-    /// authorize; all approvals from the previous panel are invalidated.
-    pub fn set_panel(
-        env: Env,
-        arbitrators: Vec<Address>,
-        threshold: u32,
-    ) -> Result<(), DisputeError> {
-        let admin = Self::admin(&env)?;
-        admin.require_auth();
-        Self::validate_panel(&env, &arbitrators, threshold)?;
+        let mut seen = Vec::new(&env);
         for arbitrator in arbitrators.iter() {
-            if arbitrator != admin {
-                arbitrator.require_auth();
+            if seen.iter().any(|member| member == arbitrator) {
+                return Err(DisputeError::InvalidPanel);
             }
+            arbitrator.require_auth();
+            seen.push_back(arbitrator);
         }
 
         let version: u32 = env

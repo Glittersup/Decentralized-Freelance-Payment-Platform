@@ -16,7 +16,8 @@ use crate::{EscrowContract, EscrowContractClient, EscrowError, EscrowStatus, Mil
 use soroban_sdk::{
     testutils::{Address as _, Events as _, Ledger},
     token::{Client as TokenClient, StellarAssetClient},
-    xdr, Address, Env, Map, Symbol, TryFromVal, Val, Vec,
+    xdr::{self, Format, ReadXdr},
+    Address, Env, Map, Symbol, TryFromVal, TryIntoVal, Val, Vec,
 };
 
 // ---------------------------------------------------------------------------
@@ -389,6 +390,26 @@ fn fund_moves_funds_into_escrow() {
     assert_eq!(f.c().get(&id).status, EscrowStatus::Active);
     assert_eq!(f.balance(&f.escrow), 1_000);
     assert_eq!(f.balance(&f.client), 9_000);
+}
+
+#[test]
+fn fund_at_expiry_is_rejected_without_moving_funds() {
+    let f = fixture();
+    let id = f.c().create(
+        &f.client,
+        &f.freelancer,
+        &f.token,
+        &milestones(&f.env, &[1_000]),
+        &2_000,
+    );
+    f.env.ledger().set_timestamp(2_000);
+
+    let res = f.c().try_fund(&id);
+
+    assert!(matches!(res, Err(Ok(EscrowError::InvalidExpiry))));
+    assert_eq!(f.c().get(&id).status, EscrowStatus::Created);
+    assert_eq!(f.balance(&f.client), 10_000);
+    assert_eq!(f.balance(&f.escrow), 0);
 }
 
 #[test]
@@ -1017,4 +1038,88 @@ fn reclaim_expired_requires_client_auth() {
     f.env.ledger().set_timestamp(10_001); // past expiry
     f.env.set_auths(&[]);
     f.c().reclaim_expired(&id);
+}
+
+// ---------------------------------------------------------------------------
+// Cross-language encoding: the arguments the backend builds for `create`
+// ---------------------------------------------------------------------------
+
+/// The exact `Vec<Milestone>` XDR that `backend/src/lib/escrowArgs.ts` builds
+/// for a known input, pinned byte-for-byte in
+/// `backend/src/__tests__/escrowArgs.test.ts` (and mirrored by the frontend's
+/// `milestonesToScVal`). The maps are keyed by `Symbol` with keys in
+/// **ascending order** — the layout a `#[contracttype]` struct decodes from.
+const BACKEND_MILESTONES_XDR: &str = "AAAAEAAAAAEAAAACAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAA\
+                                      AAAAAAAAAAAAAEsAAAADwAAAAhkZWFkbGluZQAAAAUAAAAAAAAAAAAAAA8AAAAIcmVs\
+                                      ZWFzZWQAAAAAAAAAAAAAAA8AAAAPcmVsZWFzZWRfYW1vdW50AAAAAAoAAAAAAAAAAA\
+                                      AAAAAAAAAAAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAA\
+                                      AAAAAAK8AAAADwAAAAhkZWFkbGluZQAAAAUAAAAAZVPxAAAAAA8AAAAIcmVsZWFzZW\
+                                      QAAAAAAAAAAAAAAA8AAAAPcmVsZWFzZWRfYW1vdW50AAAAAAoAAAAAAAAAAAAAAAAA\
+                                      AAAA";
+
+/// The same two milestones encoded in the `Milestone` **declaration** order
+/// (`amount`, `released`, `released_amount`, `deadline`) — what the backend
+/// produced before the encoding was sorted. Kept here as the negative case.
+const UNSORTED_MILESTONES_XDR: &str = "AAAAEAAAAAEAAAACAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAA\
+                                       AAAAAAAAAAEsAAAADwAAAAhyZWxlYXNlZAAAAAAAAAAAAAAADwAAAA9yZWxlYXNlZF9h\
+                                       bW91bnQAAAAACgAAAAAAAAAAAAAAAAAAAAAAAAAPAAAACGRlYWRsaW5lAAAABQAAAAAA\
+                                       AAAAAAAAAAAAEQAAAAEAAAAEAAAADwAAAAZhbW91bnQAAAAAAAoAAAAAAAAAAAAAAAAA\
+                                       AAK8AAAADwAAAAhyZWxlYXNlZAAAAAAAAAAAAAAAADwAAAA9yZWxlYXNlZF9hbW91bnQA\
+                                       AAAACgAAAAAAAAAAAAAAAAAAAAAAAAAPAAAACGRlYWRsaW5lAAAABQAAAABlU/EA";
+
+/// Call `create` with raw `ScVal` arguments, the way a client that built the
+/// XDR out of band (the backend, the frontend) submits it.
+fn create_raw(f: &Fixture, milestones_xdr: &str) -> Result<u64, std::string::String> {
+    let parsed = <xdr::ScVal as ReadXdr>::from_xdr(
+        &mut milestones_xdr.as_bytes(),
+        Format::Base64,
+    )
+    .map_err(|_| std::string::String::from("milestone XDR does not parse"))?;
+
+    let args: std::vec::Vec<xdr::ScVal> = std::vec![
+        f.client.clone().try_into_val(&f.env).unwrap(),
+        f.freelancer.clone().try_into_val(&f.env).unwrap(),
+        f.token.clone().try_into_val(&f.env).unwrap(),
+        parsed,
+        xdr::ScVal::U64(10_000),
+    ];
+
+    EscrowContractClient::create_raw(&f.env, &f.escrow, &args)
+        .map_err(|e| std::format!("create rejected the encoded milestones: {e:?}"))
+}
+
+#[test]
+fn create_accepts_the_backends_pinned_milestone_xdr() {
+    let f = fixture();
+
+    let id = create_raw(&f, BACKEND_MILESTONES_XDR).expect("the pinned encoding must be accepted");
+
+    // The state it stored is the state the bytes described.
+    let data = f.c().get(&id);
+    assert_eq!(data.milestones.len(), 2);
+    let first = data.milestones.get(0).unwrap();
+    assert_eq!(first.amount, 300);
+    assert_eq!(first.deadline, 0);
+    assert!(!first.released);
+    assert_eq!(first.released_amount, 0);
+    let second = data.milestones.get(1).unwrap();
+    assert_eq!(second.amount, 700);
+    assert_eq!(second.deadline, 1_700_000_000);
+    assert_eq!(data.total_amount, 1_000);
+}
+
+#[test]
+fn create_rejects_milestone_maps_whose_keys_are_not_sorted() {
+    // The declaration-order encoding carries identical fields but not in the
+    // sorted order the host requires of `ScMap`s; the two encodings are NOT
+    // interchangeable on-chain, which is why the backend sorts and pins the
+    // bytes. If this test starts passing, the host relaxed the rule and the
+    // comment in `escrowArgs.ts` should be revisited.
+    let f = fixture();
+    let err = create_raw(&f, UNSORTED_MILESTONES_XDR)
+        .expect_err("an unsorted ScMap must not be accepted as contract args");
+    assert!(
+        err.contains("rejected") || err.contains("does not parse"),
+        "unexpected failure: {err}"
+    );
 }

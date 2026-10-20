@@ -19,6 +19,7 @@
  */
 
 import { Router, type Request, type Response, type NextFunction } from "express";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { SignJWT } from "jose";
 import { prisma } from "../db";
@@ -120,82 +121,80 @@ const getFreelancersHandler = async (
         }
       : {};
 
-    const users = await prisma.user.findMany({
-      where,
-      include: {
-        ratingsReceived: {
-          select: { score: true },
-        },
-        jobsAsFreelancer: {
-          select: { id: true, status: true },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    const formatted = users.map((user) => {
-      const totalRatings = user.ratingsReceived.length;
-      const sumScore = user.ratingsReceived.reduce((acc, r) => acc + r.score, 0);
-      const averageScore = totalRatings > 0 ? Number((sumScore / totalRatings).toFixed(2)) : 0;
-      const completedJobsCount = user.jobsAsFreelancer.filter(
-        (j) => j.status === "COMPLETED",
-      ).length;
-      const totalJobsCount = user.jobsAsFreelancer.length;
-
-      return {
-        id: user.id,
-        stellarAddress: user.stellarAddress,
-        displayName: user.displayName,
-        bio: user.bio,
-        createdAt: user.createdAt,
-        averageScore,
-        totalRatings,
-        completedJobsCount,
-        totalJobsCount,
-      };
-    });
-
-    formatted.sort((a, b) => {
-      if (sortBy === "jobs") {
-        if (a.completedJobsCount !== b.completedJobsCount) {
-          return sortOrder === "asc"
-            ? a.completedJobsCount - b.completedJobsCount
-            : b.completedJobsCount - a.completedJobsCount;
-        }
-        return sortOrder === "asc"
-          ? a.totalRatings - b.totalRatings
-          : b.totalRatings - a.totalRatings;
-      }
-
-      if (sortBy === "recent") {
-        const timeA = new Date(a.createdAt).getTime();
-        const timeB = new Date(b.createdAt).getTime();
-        return sortOrder === "asc" ? timeA - timeB : timeB - timeA;
-      }
-
-      // Default: "reputation"
-      if (a.averageScore !== b.averageScore) {
-        return sortOrder === "asc"
-          ? a.averageScore - b.averageScore
-          : b.averageScore - a.averageScore;
-      }
-      if (a.totalRatings !== b.totalRatings) {
-        return sortOrder === "asc"
-          ? a.totalRatings - b.totalRatings
-          : b.totalRatings - a.totalRatings;
-      }
-      return sortOrder === "asc"
-        ? a.completedJobsCount - b.completedJobsCount
-        : b.completedJobsCount - a.completedJobsCount;
-    });
-
-    const total = formatted.length;
-    const totalPages = Math.ceil(total / limit) || 1;
+    const direction = Prisma.raw(sortOrder);
+    const orderBy =
+      sortBy === "jobs"
+        ? Prisma.sql`"completedJobsCount" ${direction}, "totalRatings" ${direction}`
+        : sortBy === "recent"
+          ? Prisma.sql`"createdAt" ${direction}`
+          : Prisma.sql`"averageScore" ${direction}, "totalRatings" ${direction}, "completedJobsCount" ${direction}`;
+    const searchFilter = search
+      ? Prisma.sql`WHERE u."stellarAddress" ILIKE ${`%${search}%`}
+          OR u."displayName" ILIKE ${`%${search}%`}
+          OR u."bio" ILIKE ${`%${search}%`}`
+      : Prisma.empty;
     const offset = (page - 1) * limit;
-    const paged = formatted.slice(offset, offset + limit);
+    const [total, paged] = await Promise.all([
+      prisma.user.count({ where }),
+      prisma.$queryRaw<
+        Array<{
+          id: string;
+          stellarAddress: string;
+          displayName: string | null;
+          bio: string | null;
+          createdAt: Date;
+          averageScore: number;
+          totalRatings: number;
+          completedJobsCount: number;
+          totalJobsCount: number;
+        }>
+      >(Prisma.sql`
+        WITH rating_metrics AS (
+          SELECT
+            r."rateeId",
+            AVG(r."score")::float AS "averageScore",
+            COUNT(*)::int AS "totalRatings"
+          FROM "Rating" r
+          GROUP BY r."rateeId"
+        ),
+        job_metrics AS (
+          SELECT
+            j."freelancerId",
+            COUNT(*) FILTER (WHERE j."status"::text = 'COMPLETED')::int AS "completedJobsCount",
+            COUNT(*)::int AS "totalJobsCount"
+          FROM "Job" j
+          WHERE j."freelancerId" IS NOT NULL
+          GROUP BY j."freelancerId"
+        ),
+        metrics AS (
+          SELECT
+            u."id",
+            u."stellarAddress",
+            u."displayName",
+            u."bio",
+            u."createdAt",
+            COALESCE(r."averageScore", 0::float) AS "averageScore",
+            COALESCE(r."totalRatings", 0) AS "totalRatings",
+            COALESCE(j."completedJobsCount", 0) AS "completedJobsCount",
+            COALESCE(j."totalJobsCount", 0) AS "totalJobsCount"
+          FROM "User" u
+          LEFT JOIN rating_metrics r ON r."rateeId" = u."id"
+          LEFT JOIN job_metrics j ON j."freelancerId" = u."id"
+          ${searchFilter}
+        )
+        SELECT *
+        FROM metrics
+        ORDER BY ${orderBy}, "id" ASC
+        LIMIT ${limit} OFFSET ${offset}
+      `),
+    ]);
+    const totalPages = Math.ceil(total / limit) || 1;
 
     res.json({
-      freelancers: paged,
+      freelancers: paged.map((user) => ({
+        ...user,
+        averageScore: Number(user.averageScore.toFixed(2)),
+      })),
       total,
       page,
       limit,
@@ -370,4 +369,3 @@ usersRouter.put("/me", requireAuth, validate(updateSchema), async (req, res, nex
     next(err);
   }
 });
-

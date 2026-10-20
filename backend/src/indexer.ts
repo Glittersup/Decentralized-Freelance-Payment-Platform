@@ -49,7 +49,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
-import { SorobanRpc } from "@stellar/stellar-sdk";
+import { SorobanRpc, xdr } from "@stellar/stellar-sdk";
 import type { DisputeStatus, JobStatus, MilestoneStatus, NotificationType } from "@prisma/client";
 import { config } from "./config";
 import { prisma } from "./db";
@@ -362,6 +362,7 @@ export async function recordDeadLetter(
     MAX_ERROR_LENGTH,
   );
   const id = deadLetterKey(event);
+  const eventPayload = serializeDeadLetterEvent(event);
 
   await prisma.indexerDeadLetter.upsert({
     where: { id },
@@ -371,12 +372,50 @@ export async function recordDeadLetter(
       eventName: decodeEventName(event),
       contractId: (event as { contractId?: string }).contractId ?? null,
       error: message,
+      eventPayload,
     },
     update: {
       attempts: { increment: 1 },
       error: message,
+      eventPayload,
     },
   });
+}
+
+export function serializeDeadLetterEvent(event: ContractEventLike) {
+  return {
+    ledger: event.ledger,
+    topic: event.topic.map((value) => value.toXDR("base64")),
+    value: event.value.toXDR("base64"),
+    ...(event.id ? { id: event.id } : {}),
+    ...(event.txHash ? { txHash: event.txHash } : {}),
+    ...(event.ledgerClosedAt ? { ledgerClosedAt: event.ledgerClosedAt } : {}),
+  };
+}
+
+/** Restore the raw event persisted alongside a dead-letter row. */
+export function restoreDeadLetterEvent(payload: unknown): ContractEventLike {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("Dead letter has no replayable event payload");
+  }
+  const row = payload as Record<string, unknown>;
+  if (
+    !Number.isInteger(row.ledger) ||
+    !Array.isArray(row.topic) ||
+    !row.topic.every((value) => typeof value === "string") ||
+    typeof row.value !== "string"
+  ) {
+    throw new Error("Dead letter event payload is invalid");
+  }
+
+  return {
+    ledger: row.ledger as number,
+    topic: row.topic.map((value) => xdr.ScVal.fromXDR(value, "base64")),
+    value: xdr.ScVal.fromXDR(row.value, "base64"),
+    ...(typeof row.id === "string" ? { id: row.id } : {}),
+    ...(typeof row.txHash === "string" ? { txHash: row.txHash } : {}),
+    ...(typeof row.ledgerClosedAt === "string" ? { ledgerClosedAt: row.ledgerClosedAt } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -631,13 +670,9 @@ export async function handleFunded(escrowId: bigint | null, store: IndexerStore)
 
 /**
  * `update_milestones` replaces the whole breakdown and emits only `count` and
- * `total_amount` — no per-milestone amounts, so the indexer cannot rebuild the
- * rows from the event alone. It *can* reconcile the total, which it does here;
- * the rows themselves are written by the client through
- * `PUT /api/escrow/:escrowId/milestones` once the transaction confirms.
- *
- * Applying the total here means the off-chain total cannot drift even if that
- * follow-up call never happens.
+ * `total_amount`. The event can reconcile an unchanged breakdown, but cannot
+ * rebuild an edited one; mark mismatched rows stale until the client records
+ * the confirmed breakdown through `PUT /api/escrow/:escrowId/milestones`.
  */
 async function handleMilestonesUpdated(
   escrowId: bigint | null,
@@ -645,12 +680,25 @@ async function handleMilestonesUpdated(
   store: IndexerStore,
 ): Promise<void> {
   const totalAmount = asBigInt(data.total_amount);
-  if (escrowId === null || totalAmount === null || totalAmount <= 0n) return;
+  const count = asNumber(data.count);
+  if (escrowId === null || totalAmount === null || totalAmount <= 0n || count === null || count < 0) {
+    return;
+  }
 
-  const job = await store.job.findUnique({ where: { escrowId } });
+  const job = await store.job.findUnique({ where: { escrowId }, include: { milestones: true } });
   if (!job) return;
 
   const decimals = ASSETS[String(job.asset).toUpperCase()]?.decimals ?? 7;
+  const currentMilestoneTotal = job.milestones.reduce(
+    (sum, milestone) => sum + toBaseUnits(milestone.amount.toString(), decimals),
+    0n,
+  );
+  if (job.milestones.length !== count || currentMilestoneTotal !== totalAmount) {
+    await store.milestone.updateMany({
+      where: { jobId: job.id },
+      data: { isStale: true },
+    });
+  }
   await store.job.update({
     where: { id: job.id },
     data: { totalAmount: fromBaseUnits(totalAmount, decimals) },

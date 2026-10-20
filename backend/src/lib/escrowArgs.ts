@@ -24,12 +24,27 @@ export interface MilestoneArg {
   releasedAmount?: bigint;
 }
 
-/** Encode one milestone as the contract's `Milestone` struct. */
+/**
+ * Encode one milestone as the contract's `Milestone` struct.
+ *
+ * The map entries are emitted in **ascending key order** (`amount`, `deadline`,
+ * `released`, `released_amount`) — the order the Rust SDK produces for a
+ * `#[contracttype]` struct and the order `nativeToScVal` sorts to, because the
+ * Soroban runtime expects map keys in sorted order. Hand-built maps in field
+ * declaration order decode fine locally (`scValToNative` does not care) but can
+ * be rejected on-chain after the fee is spent, so the sorted order is part of
+ * the contract-facing layout, not a detail. See `escrowArgs.test.ts`, which
+ * pins both the XDR bytes and the equivalence with `nativeToScVal`.
+ */
 export function milestoneToScVal(m: MilestoneArg): xdr.ScVal {
   return xdr.ScVal.scvMap([
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol("amount"),
       val: nativeToScVal(m.amount, { type: "i128" }),
+    }),
+    new xdr.ScMapEntry({
+      key: xdr.ScVal.scvSymbol("deadline"),
+      val: nativeToScVal(m.deadline, { type: "u64" }),
     }),
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol("released"),
@@ -38,10 +53,6 @@ export function milestoneToScVal(m: MilestoneArg): xdr.ScVal {
     new xdr.ScMapEntry({
       key: xdr.ScVal.scvSymbol("released_amount"),
       val: nativeToScVal(m.releasedAmount ?? 0n, { type: "i128" }),
-    }),
-    new xdr.ScMapEntry({
-      key: xdr.ScVal.scvSymbol("deadline"),
-      val: nativeToScVal(m.deadline, { type: "u64" }),
     }),
   ]);
 }

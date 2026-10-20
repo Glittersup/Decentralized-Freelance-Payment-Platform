@@ -334,6 +334,9 @@ impl EscrowContract {
         if escrow.status != EscrowStatus::Created {
             return Err(EscrowError::InvalidStatus);
         }
+        if env.ledger().timestamp() >= escrow.expiry {
+            return Err(EscrowError::InvalidExpiry);
+        }
 
         // Effects before interaction.
         escrow.status = EscrowStatus::Active;

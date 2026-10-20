@@ -10,7 +10,8 @@ is structured, how to get a working environment, and the conventions to follow.
 A decentralized freelance payment platform on Stellar. Clients fund a
 milestone-based escrow in a Stellar Asset Contract (USDC in production); the
 freelancer is paid as milestones are approved. Disputes are resolved by an
-arbitrator, and both parties rate each other on-chain afterwards.
+M-of-N arbitrator panel, with a seven-day client reclaim timelock if the panel
+does not rule. Both parties can rate each other on-chain afterwards.
 
 Three Soroban contracts (Rust → Wasm) plus a React frontend and an Express
 backend. **Everything is testnet-only — never use real funds.**
@@ -152,17 +153,15 @@ Details of the dispute panel and timelock are in
 | escrow | `set_dispute_timeout(timeout_seconds)` | admin-only; sets the positive timeout used by future disputes |
 | escrow | `create(client, freelancer, token, milestones, expiry)` | validates amounts/expiry; returns id |
 | escrow | `update_milestones(escrow_id, milestones)` | client-only, while still `Created` (before funding); re-validates and recomputes the total |
-| escrow | `fund(escrow_id)` | client deposits the total |
+| escrow | `fund(escrow_id)` | client deposits the total before the expiry timestamp |
 | escrow | `release_milestone(escrow_id, milestone_index)` | client-only; completes the job on the last one |
 | escrow | `release_partial(escrow_id, milestone_index, amount)` | client-only; pays part of a milestone and tracks `released_amount` |
 | escrow | `open_dispute(escrow_id, initiator)` | either party; freezes the escrow and starts the dispute timelock |
 | escrow | `resolve(escrow_id, client_share, freelancer_share)` | **dispute contract only**; shares must sum to the funds held |
 | escrow | `reclaim_expired(escrow_id)` | client-only refund of the unreleased remainder after expiry; earlier releases are not clawed back |
-| escrow | `reclaim_after_dispute_timeout(escrow_id)` | client refund from `Disputed` once the configured dispute deadline passes |
-| escrow | `get(escrow_id)` / `dispute_contract()` / `dispute_deadline(escrow_id)` / `dispute_timeout_seconds()` | views |
-| dispute | `init(admin, arbitrators, threshold)` | one-time; admin and every unique panel member authorize |
-| dispute | `set_panel(arbitrators, threshold)` | admin-only; replaces the panel and invalidates previous approvals |
-| dispute | `set_threshold(threshold)` | admin-only; threshold must be within panel size |
+| escrow | `reclaim_after_dispute_timeout(escrow_id)` | client refund from `Disputed` once the dispute deadline passes |
+| escrow | `get(escrow_id)` / `dispute_contract()` / `dispute_deadline(escrow_id)` | views |
+| dispute | `init(arbitrators, threshold)` | one-time; unique panel addresses, valid threshold, every panel member authorizes |
 | dispute | `raise(escrow_id, escrow_contract, raised_by, reason)` | verifies escrow is Disputed and caller is a party |
 | dispute | `approve(dispute_id, arbitrator, client_share, freelancer_share)` | panel-only; records an approval of a specific split |
 | dispute | `arbitrate(dispute_id, client_share, freelancer_share)` | needs `threshold` matching approvals; cross-calls `escrow.resolve` |

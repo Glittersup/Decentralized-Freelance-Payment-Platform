@@ -29,9 +29,13 @@ export interface AuthNonceStore {
     create: AuthNonceRow;
     update: { nonce: string; expiresAt: Date };
   }): Promise<unknown>;
-  findUnique(args: { where: { address: string } }): Promise<AuthNonceRow | null>;
-  delete(args: { where: { address: string } }): Promise<unknown>;
-  deleteMany(args: { where: { expiresAt: { lt: Date } } }): Promise<unknown>;
+  deleteMany(args: {
+    where: {
+      address?: string;
+      nonce?: string;
+      expiresAt?: { lte?: Date; gt?: Date };
+    };
+  }): Promise<{ count: number }>;
 }
 
 /**
@@ -46,7 +50,7 @@ export async function issueNonce(
   const nonce = randomUUID();
   const expiresAt = new Date(now.getTime() + NONCE_TTL_MS);
 
-  await db.deleteMany({ where: { expiresAt: { lt: now } } });
+  await db.deleteMany({ where: { expiresAt: { lte: now } } });
   await db.upsert({
     where: { address },
     create: { address, nonce, expiresAt },
@@ -66,11 +70,8 @@ export async function consumeNonce(
   nonce: string,
   now: Date = new Date(),
 ): Promise<boolean> {
-  const stored = await db.findUnique({ where: { address } });
-  if (!stored) return false;
-  if (stored.nonce !== nonce) return false;
-  if (stored.expiresAt.getTime() < now.getTime()) return false;
-
-  await db.delete({ where: { address } });
-  return true;
+  const result = await db.deleteMany({
+    where: { address, nonce, expiresAt: { gt: now } },
+  });
+  return result.count === 1;
 }
