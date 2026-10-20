@@ -8,28 +8,20 @@
 
 import { Router } from "express";
 import { z } from "zod";
-import {
-  Contract,
-  Networks,
-  SorobanRpc,
-  TransactionBuilder,
-  BASE_FEE,
-} from "@stellar/stellar-sdk";
+import { Contract } from "@stellar/stellar-sdk";
 import { Prisma } from "@prisma/client";
 import { config } from "../config";
 import { buildReputationSubmitArgs } from "../lib/scval";
 import { isValidStellarAddress } from "../lib/stellarAddress";
-import { friendlyContractError, REPUTATION_ERROR_MESSAGES } from "../lib/contractErrors";
+import { REPUTATION_ERROR_MESSAGES } from "../lib/contractErrors";
+import { buildTx } from "../lib/soroban";
+import { computeWeightedAggregate } from "../lib/reputation";
 import { prisma } from "../db";
 import { requireAuth } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import { AppError } from "../middleware/errorHandler";
 
 export const reputationRouter = Router();
-
-const server = new SorobanRpc.Server(config.SOROBAN_RPC_URL);
-const networkPassphrase =
-  config.STELLAR_NETWORK === "mainnet" ? Networks.PUBLIC : Networks.TESTNET;
 
 // POST /api/reputation
 export const submitSchema = z.object({
@@ -51,7 +43,29 @@ reputationRouter.post("/", requireAuth, validate(submitSchema), async (req, res,
     if (job.status !== "COMPLETED") throw new AppError(400, "Job is not completed");
     if (!job.escrowId) throw new AppError(400, "No on-chain escrow for this job");
 
+    // The caller must be one of the job's two participants, and the ratee must
+    // be the *other* one. The reputation contract enforces exactly this
+    // (`ReputationError::Unauthorized` / `InvalidRatee`), but the off-chain row
+    // is written before the transaction is submitted — so without this check an
+    // invalid rating persists even though the chain would reject it (#33).
     const raterAddress = res.locals.stellarAddress;
+    const clientAddress = job.client.stellarAddress;
+    const freelancerAddress = job.freelancer?.stellarAddress ?? null;
+
+    let expectedRatee: string;
+    if (raterAddress === clientAddress) {
+      if (!freelancerAddress) throw new AppError(400, "Job has no freelancer to rate");
+      expectedRatee = freelancerAddress;
+    } else if (freelancerAddress !== null && raterAddress === freelancerAddress) {
+      expectedRatee = clientAddress;
+    } else {
+      throw new AppError(403, "Not a participant of this job");
+    }
+
+    if (rateeAddress !== expectedRatee) {
+      throw new AppError(400, "Ratee must be the job's other participant");
+    }
+
     const ratee = await prisma.user.findUnique({ where: { stellarAddress: rateeAddress } });
     const rater = await prisma.user.findUnique({ where: { stellarAddress: raterAddress } });
     if (!ratee || !rater) throw new AppError(404, "User not found");
@@ -67,26 +81,17 @@ reputationRouter.post("/", requireAuth, validate(submitSchema), async (req, res,
       throw new AppError(409, "You have already rated this job.");
     }
 
-    // Build reputation.submit tx
+    // Build reputation.submit tx. The shared builder translates a simulation
+    // HostError with the reputation contract's own error table.
     const contract = new Contract(config.REPUTATION_CONTRACT_ID);
-    const account = await server.getAccount(raterAddress);
-    const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase })
-      .addOperation(
-        contract.call(
-          "submit",
-          ...buildReputationSubmitArgs(raterAddress, rateeAddress, job.escrowId, score),
-        ),
-      )
-      .setTimeout(30)
-      .build();
-    const sim = await server.simulateTransaction(tx);
-    if ("error" in sim) {
-      // Translate the raw HostError into a readable message using the
-      // reputation contract's own error table.
-      const friendly = friendlyContractError(String(sim.error), REPUTATION_ERROR_MESSAGES);
-      throw new AppError(400, `Simulation failed: ${friendly}`);
-    }
-    const xdr = SorobanRpc.assembleTransaction(tx, sim).build().toXDR();
+    const xdr = await buildTx(
+      raterAddress,
+      contract.call(
+        "submit",
+        ...buildReputationSubmitArgs(raterAddress, rateeAddress, job.escrowId, score),
+      ),
+      { messages: REPUTATION_ERROR_MESSAGES, errorPrefix: "Simulation failed" },
+    );
 
     // Persist off-chain (on-chain record is source of truth; this is for fast reads).
     // Only create the row after the transaction is successfully built so a row
@@ -136,17 +141,38 @@ reputationRouter.get("/:address/ratings", async (req, res, next) => {
 });
 
 // GET /api/reputation/:address
+//
+// Returns the same weighted aggregate the reputation contract maintains, not a
+// plain mean of the rows (#34). `count` is the number of ratings that counted
+// toward it; `totalRatings` remains the number of rows received, so a profile
+// can still say "N reviews" while the score matches the chain. `totalScore` and
+// `weight` are strings because they are u64 values, exactly as the contract
+// returns them.
 reputationRouter.get("/:address", async (req, res, next) => {
   try {
-    const result = await prisma.rating.aggregate({
+    const ratings = await prisma.rating.findMany({
       where: { ratee: { stellarAddress: req.params.address } },
-      _avg: { score: true },
-      _count: { score: true },
+      select: {
+        score: true,
+        raterId: true,
+        job: { select: { totalAmountUsdc: true, asset: true } },
+      },
+      // Oldest first: the first rating from a rater is the one that counted.
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     });
+
+    const aggregate = computeWeightedAggregate(ratings);
+
     res.json({
       address: req.params.address,
-      averageScore: result._avg.score ?? 0,
-      totalRatings: result._count.score,
+      averageScore:
+        aggregate.weight > 0n
+          ? Number(aggregate.totalScore) / Number(aggregate.weight)
+          : 0,
+      totalScore: aggregate.totalScore.toString(),
+      weight: aggregate.weight.toString(),
+      count: aggregate.count,
+      totalRatings: ratings.length,
     });
   } catch (err) {
     next(err);

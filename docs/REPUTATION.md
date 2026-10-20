@@ -31,6 +31,49 @@ number of ratings that counted, so the UI can still show "N review(s)".
 This is integer-only (no floating point on-chain). Rounding is left to the
 display layer.
 
+## The API mirror
+
+`GET /api/reputation/:address` returns the same aggregate the contract stores,
+not a plain mean of the `Rating` rows (issue #34). The route folds the rows with
+exactly the rule above (the `/ratings` listing beside it stays raw, one row per
+review):
+
+- rows are read oldest first, and the first row per `(rater, ratee)` is the one
+  that counts — the `RatingCounted` marker;
+- each counted row is weighted by `Job.totalAmountUsdc` converted to the job
+  asset's base units (the same `total_amount` the escrow stores);
+- a zero-weight row (a zero-amount escrow, or an asset the registry does not
+  know) is not counted, matching the contract's `if weight > 0` guard.
+
+The response extends the previous shape without breaking it:
+
+```json
+{
+  "address": "G...",
+  "averageScore": 3.2,
+  "totalScore": "32000000000",
+  "weight": "10000000000",
+  "count": 2,
+  "totalRatings": 2
+}
+```
+
+`totalScore` and `weight` are the contract's `u64` fields as decimal strings,
+so a client can compare them with `get_aggregate` exactly; `averageScore` is
+`totalScore / weight` (0 when nothing counted) for display; `count` is the
+number of counted ratings, while `totalRatings` remains the number of rows
+received, so the profile can still say "N review(s)".
+
+One caveat is inherent to the off-chain mirror: `POST /api/reputation` writes
+the `Rating` row before the transaction is submitted, so a row whose
+`reputation.submit` never confirmed can be reflected in the API while the chain
+has not seen it. The idempotent `(rater, job)` key stops a duplicate, but the
+chain remains the source of truth for a settled aggregate.
+
+The freelancer directory (`GET /api/users/freelancers`) still sorts by the raw
+mean of the rows; it is a discovery surface, not the aggregate the profile
+shows, and is a candidate for the same helper in a follow-up.
+
 ## Cost model
 
 Weighting is applied **once, in `submit`**, not recomputed on every read:

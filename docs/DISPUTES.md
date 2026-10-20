@@ -137,7 +137,7 @@ the indexer does not invent a share split it was never told.
 | `GET /api/disputes/:id` | anyone | The row, with its party addresses. |
 | `POST /api/disputes/:id/raise` | a party | Returns the `dispute.raise` XDR, using the stored reason. `409` if the dispute is already on-chain. |
 | `POST /api/disputes/:id/sync` | a party | Records the on-chain dispute id returned by `raise`. |
-| `POST /api/disputes/:id/resolve` | an `ARBITRATOR_ADDRESSES` member | Returns the `dispute.arbitrate` XDR for a split. `409` until the dispute is on-chain. |
+| `POST /api/disputes/:id/resolve` | an `ARBITRATOR_ADDRESSES` member | Returns the `dispute.arbitrate` XDR for a split. `409` until the dispute is on-chain. Shares are whole units of the **job's** asset and are converted at that asset's `decimals` (issue #35), so a non-7-decimal token is encoded correctly; an asset the registry does not know is a `400`. |
 
 Off-chain checks here are early rejections, not the security boundary: the
 escrow and dispute contracts re-check every precondition on-chain (the escrow is
