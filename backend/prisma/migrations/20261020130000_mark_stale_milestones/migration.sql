@@ -1,0 +1,2 @@
+ALTER TABLE "Milestone"
+ADD COLUMN "isStale" BOOLEAN NOT NULL DEFAULT false;

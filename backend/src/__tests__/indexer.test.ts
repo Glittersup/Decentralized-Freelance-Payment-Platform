@@ -21,7 +21,9 @@ import {
   handleRaised,
   handleRefunded,
   processContractEvents,
+  restoreDeadLetterEvent,
   resolveStartLedger,
+  serializeDeadLetterEvent,
   type DisputeLifecycleStores,
   type IndexerStore,
   type MilestoneReleaseJob,
@@ -90,6 +92,16 @@ const CONTRACT = "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM";
 const ALICE = "GBPLJHDI6RPLS4EEJJTM7EVEV3UNTXLFAACWA63QSTHGLWH5RO3LQ75B";
 
 describe("event decoding", () => {
+  it("restores the original event from its dead-letter payload", () => {
+    const event = makeTopicEvent("milestones_updated", 7n, {
+      count: nativeToScVal(2, { type: "u32" }),
+    });
+    const restored = restoreDeadLetterEvent(serializeDeadLetterEvent(event));
+
+    expect(decodeEventName(restored)).toBe("milestones_updated");
+    expect(eventFields(restored)).toEqual(eventFields(event));
+  });
+
   it("decodes a captured milestone_released event", () => {
     const event = makeEvent("milestone_released", {
       escrow_id: nativeToScVal(7n, { type: "u64" }),
@@ -862,6 +874,7 @@ interface FakeMilestone {
   /** Human units, like the Prisma `Decimal` columns. */
   amount: string;
   releasedAmount: string;
+  isStale: boolean;
 }
 
 interface FakeDispute {
@@ -898,6 +911,7 @@ function fakeJob(overrides: Partial<FakeJob> = {}): FakeJob {
         releasedAt: null,
         amount: "0.5",
         releasedAmount: "0",
+        isStale: false,
       },
       {
         id: "m1",
@@ -906,6 +920,7 @@ function fakeJob(overrides: Partial<FakeJob> = {}): FakeJob {
         releasedAt: null,
         amount: "0.5",
         releasedAmount: "0",
+        isStale: false,
       },
     ],
     disputes: [],
@@ -914,7 +929,12 @@ function fakeJob(overrides: Partial<FakeJob> = {}): FakeJob {
 }
 
 /** The `where` clauses the handlers actually use. */
-type FakeWhere = { escrowId?: bigint | null; id?: string; job?: { escrowId: bigint | null } };
+type FakeWhere = {
+  escrowId?: bigint | null;
+  id?: string;
+  jobId?: string;
+  job?: { escrowId: bigint | null };
+};
 
 interface FakeRatingRow {
   jobId: string;
@@ -936,7 +956,11 @@ function makeStore(jobs: FakeJob[], ratings: FakeRatingRow[] = []): IndexerStore
   const byId = (id: string) => jobs.find((job) => job.id === id);
   const byEscrow = (escrowId: bigint | null) => jobs.filter((job) => job.escrowId === escrowId);
   const related = <T>(where: FakeWhere, pick: (job: FakeJob) => T[]): T[] =>
-    byEscrow(where.job?.escrowId ?? null).flatMap(pick);
+    jobs
+      .filter((job) =>
+        where.jobId ? job.id === where.jobId : job.escrowId === where.job?.escrowId,
+      )
+      .flatMap(pick);
 
   return {
     job: {
@@ -1150,10 +1174,7 @@ describe("dispatchEvent", () => {
     expect(jobs[0].milestones[0].status).toBe("PENDING");
   });
 
-  it("reconciles the total from milestones_updated without rebuilding the rows", async () => {
-    // The event carries only count/total_amount, so the per-milestone rows stay
-    // as the API wrote them; the total cannot drift even if `PUT /milestones`
-    // never follows.
+  it("reconciles the total and marks a mismatched milestone breakdown stale", async () => {
     const jobs = [fakeJob({ asset: "XLM", totalAmount: "1" })];
 
     await dispatchEvent(
@@ -1165,7 +1186,22 @@ describe("dispatchEvent", () => {
     );
 
     expect(jobs[0].totalAmount).toBe("2.5");
-    expect(jobs[0].milestones.map((m) => m.id)).toEqual(["m0", "m1"]);
+    expect(jobs[0].milestones.every((milestone) => milestone.isStale)).toBe(true);
+  });
+
+  it("keeps a milestone breakdown current when its count and total match the event", async () => {
+    const jobs = [fakeJob({ totalAmount: "1" })];
+
+    await dispatchEvent(
+      makeTopicEvent("milestones_updated", 7n, {
+        count: nativeToScVal(2, { type: "u32" }),
+        total_amount: nativeToScVal(10_000_000n, { type: "i128" }),
+      }),
+      makeStore(jobs),
+    );
+
+    expect(jobs[0].totalAmount).toBe("1");
+    expect(jobs[0].milestones.every((milestone) => !milestone.isStale)).toBe(true);
   });
 
   it("ignores a milestones_updated total of zero", async () => {
