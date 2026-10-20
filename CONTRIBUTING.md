@@ -196,7 +196,7 @@ without exporting one another's symbols. Contract crates are pulled in only as
 ## Testing
 
 ```bash
-# Contracts: 86 tests — every state transition and failure path + 3 integration
+# Contracts: 98 tests — every state transition and failure path + 3 integration
 cd contracts
 cargo test
 cargo test -p escrow                    # one contract

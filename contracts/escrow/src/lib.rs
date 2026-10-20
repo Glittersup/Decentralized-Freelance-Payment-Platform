@@ -51,6 +51,7 @@ pub enum DataKey {
     Escrow(u64),
     Counter,
     Admin,
+    Paused,
     DisputeContract,
     DisputeTimeoutSeconds,
     /// Timestamp after which a `Disputed` escrow may be reclaimed by the client.
@@ -212,6 +213,38 @@ impl EscrowContract {
         Ok(())
     }
 
+    /// Pause or resume escrow operations. Admin only.
+    pub fn pause(env: Env) -> Result<(), EscrowError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(EscrowError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Paused, &true);
+        Self::extend_instance(&env);
+        Ok(())
+    }
+
+    pub fn unpause(env: Env) -> Result<(), EscrowError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(EscrowError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Paused, &false);
+        Self::extend_instance(&env);
+        Ok(())
+    }
+
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+    }
+
     /// Create a new escrow job.
     ///
     /// # Arguments
@@ -230,6 +263,7 @@ impl EscrowContract {
         milestones: Vec<Milestone>,
         expiry: u64,
     ) -> Result<u64, EscrowError> {
+        Self::require_not_paused(&env)?;
         client.require_auth();
 
         if milestones.is_empty() {
@@ -288,6 +322,7 @@ impl EscrowContract {
         escrow_id: u64,
         milestones: Vec<Milestone>,
     ) -> Result<(), EscrowError> {
+        Self::require_not_paused(&env)?;
         let mut escrow = Self::load(&env, escrow_id)?;
         escrow.client.require_auth();
 
@@ -328,6 +363,7 @@ impl EscrowContract {
 
     /// Client deposits funds, moving escrow from Created to Active.
     pub fn fund(env: Env, escrow_id: u64) -> Result<(), EscrowError> {
+        Self::require_not_paused(&env)?;
         let mut escrow = Self::load(&env, escrow_id)?;
         escrow.client.require_auth();
 
@@ -366,6 +402,7 @@ impl EscrowContract {
         escrow_id: u64,
         milestone_index: u32,
     ) -> Result<(), EscrowError> {
+        Self::require_not_paused(&env)?;
         let mut escrow = Self::load(&env, escrow_id)?;
         escrow.client.require_auth();
 
@@ -425,6 +462,7 @@ impl EscrowContract {
         milestone_index: u32,
         amount: i128,
     ) -> Result<(), EscrowError> {
+        Self::require_not_paused(&env)?;
         let mut escrow = Self::load(&env, escrow_id)?;
         escrow.client.require_auth();
 
@@ -486,6 +524,7 @@ impl EscrowContract {
     /// Either party can open a dispute, freezing the escrow.
     /// Resolution is handled by the dispute contract registered in `init`.
     pub fn open_dispute(env: Env, escrow_id: u64, initiator: Address) -> Result<(), EscrowError> {
+        Self::require_not_paused(&env)?;
         let mut escrow = Self::load(&env, escrow_id)?;
         initiator.require_auth();
 
@@ -533,6 +572,7 @@ impl EscrowContract {
     /// moves the escrow to `Refunded`, a late `resolve` is rejected (status is no
     /// longer `Disputed`), so funds cannot be paid out twice.
     pub fn reclaim_after_dispute_timeout(env: Env, escrow_id: u64) -> Result<(), EscrowError> {
+        Self::require_not_paused(&env)?;
         let mut escrow = Self::load(&env, escrow_id)?;
         escrow.client.require_auth();
 
@@ -585,6 +625,7 @@ impl EscrowContract {
         client_share: i128,
         freelancer_share: i128,
     ) -> Result<(), EscrowError> {
+        Self::require_not_paused(&env)?;
         // Only the registered dispute contract may resolve.
         let dispute_contract: Address = env
             .storage()
@@ -644,6 +685,7 @@ impl EscrowContract {
     /// Refund the client if the escrow has passed its safety expiry with no
     /// completion. Only unreleased milestones are refunded.
     pub fn reclaim_expired(env: Env, escrow_id: u64) -> Result<(), EscrowError> {
+        Self::require_not_paused(&env)?;
         let mut escrow = Self::load(&env, escrow_id)?;
         escrow.client.require_auth();
 
@@ -754,6 +796,18 @@ impl EscrowContract {
         env.storage()
             .instance()
             .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+    }
+
+    fn require_not_paused(env: &Env) -> Result<(), EscrowError> {
+        if env
+            .storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            return Err(EscrowError::Paused);
+        }
+        Ok(())
     }
 
     fn next_id(env: &Env) -> Result<u64, EscrowError> {

@@ -49,8 +49,8 @@ describe("friendlyContractError", () => {
   });
 
   it("covers every DisputeError discriminant", () => {
-    // contracts/dispute/src/lib.rs declares 1..=13.
-    for (let code = 1; code <= 13; code++) {
+    // contracts/dispute/src/lib.rs declares 1..=14.
+    for (let code = 1; code <= 14; code++) {
       expect(DISPUTE_ERROR_MESSAGES[code]).toBeTruthy();
     }
   });

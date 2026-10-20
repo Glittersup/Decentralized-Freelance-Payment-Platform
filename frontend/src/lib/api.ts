@@ -267,17 +267,29 @@ export interface TransactionApi {
   createdAt: string;
 }
 
+export interface TransactionHistoryApi {
+  data: TransactionApi[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 /** The on-chain history for an address's escrows, newest ledger first. */
 export async function fetchTransactions(
   address: string,
+  page = 1,
+  limit = 20,
   signal?: AbortSignal,
-): Promise<TransactionApi[]> {
+): Promise<TransactionHistoryApi> {
   const res = await fetch(
-    `${API_BASE_URL}/api/users/${encodeURIComponent(address)}/transactions`,
+    `${API_BASE_URL}/api/users/${encodeURIComponent(address)}/transactions?page=${page}&limit=${limit}`,
     { signal },
   );
   if (!res.ok) throw new Error(`Could not load transactions (HTTP ${res.status})`);
-  return (await res.json()) as TransactionApi[];
+  return (await res.json()) as TransactionHistoryApi;
 }
 
 /** How a milestone deadline reads right now (issue #74). */
@@ -966,5 +978,4 @@ export async function updateUserProfile(
   if (!res.ok) throw new Error(`Could not update profile (HTTP ${res.status})`);
   return (await res.json()) as UserProfileApi;
 }
-
 

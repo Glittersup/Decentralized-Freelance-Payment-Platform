@@ -164,27 +164,31 @@ describe("fetchTransactions", () => {
   it("requests the per-address history endpoint and returns the events", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
-        JSON.stringify([
-          {
-            id: "evt-42",
-            escrowId: "7",
-            action: "milestone_released",
-            amount: "0.3",
-            asset: "USDC",
-            txHash: "abc123",
-            ledger: 42,
-            createdAt: "2026-01-02T00:00:00.000Z",
-          },
-        ]),
+        JSON.stringify({
+          data: [
+            {
+              id: "evt-42",
+              escrowId: "7",
+              action: "milestone_released",
+              amount: "0.3",
+              asset: "USDC",
+              txHash: "abc123",
+              ledger: 42,
+              createdAt: "2026-01-02T00:00:00.000Z",
+            },
+          ],
+          pagination: { page: 2, limit: 20, total: 21, totalPages: 2 },
+        }),
         { status: 200 },
       ),
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const events = await fetchTransactions("GADDR");
+    const history = await fetchTransactions("GADDR", 2);
 
-    expect(events[0].txHash).toBe("abc123");
-    expect(fetchMock.mock.calls[0][0]).toContain("/api/users/GADDR/transactions");
+    expect(history.data[0].txHash).toBe("abc123");
+    expect(history.pagination).toEqual({ page: 2, limit: 20, total: 21, totalPages: 2 });
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/users/GADDR/transactions?page=2&limit=20");
   });
 
   it("throws with the status when the API rejects the read", async () => {
@@ -696,4 +700,3 @@ describe("submitProposal and proposals API (Issue #63)", () => {
     expect(JSON.parse(init.body as string)).toEqual({ freelancerAddress: "GABCDEF" });
   });
 });
-

@@ -85,6 +85,8 @@ pub enum DataKey {
     Admin,
     /// The arbitrator panel, initially set in `init`.
     Arbitrators,
+    Admin,
+    Paused,
     /// How many panel approvals a proposal needs (M-of-N).
     Threshold,
     /// Incremented whenever the panel changes, invalidating previous votes.
@@ -150,6 +152,7 @@ pub enum DisputeError {
     InvalidPanel = 11,
     InvalidThreshold = 12,
     InsufficientApprovals = 13,
+    Paused = 14,
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +202,7 @@ impl DisputeContract {
         env.storage()
             .instance()
             .set(&DataKey::Arbitrators, &arbitrators);
+        env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage()
             .instance()
             .set(&DataKey::Threshold, &threshold);
@@ -228,6 +232,38 @@ impl DisputeContract {
         Ok(())
     }
 
+    /// Pause or resume dispute operations. The first arbitrator is the admin.
+    pub fn pause(env: Env) -> Result<(), DisputeError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(DisputeError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Paused, &true);
+        Self::extend_instance(&env);
+        Ok(())
+    }
+
+    pub fn unpause(env: Env) -> Result<(), DisputeError> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(DisputeError::NotInitialized)?;
+        admin.require_auth();
+        env.storage().instance().set(&DataKey::Paused, &false);
+        Self::extend_instance(&env);
+        Ok(())
+    }
+
+    pub fn is_paused(env: Env) -> bool {
+        env.storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+    }
+
     /// Raise a dispute for a frozen escrow.
     ///
     /// Verifies against the escrow contract that the escrow is `Disputed` and the
@@ -239,6 +275,7 @@ impl DisputeContract {
         raised_by: Address,
         reason: String,
     ) -> Result<u64, DisputeError> {
+        Self::require_not_paused(&env)?;
         raised_by.require_auth();
 
         // Scope the duplicate guard by the escrow contract as well as the id.
@@ -312,6 +349,7 @@ impl DisputeContract {
         client_share: i128,
         freelancer_share: i128,
     ) -> Result<(), DisputeError> {
+        Self::require_not_paused(&env)?;
         arbitrator.require_auth();
 
         let panel: Vec<Address> = env
@@ -368,6 +406,7 @@ impl DisputeContract {
         client_share: i128,
         freelancer_share: i128,
     ) -> Result<(), DisputeError> {
+        Self::require_not_paused(&env)?;
         let panel: Vec<Address> = env
             .storage()
             .instance()
@@ -520,6 +559,18 @@ impl DisputeContract {
         env.storage()
             .instance()
             .extend_ttl(TTL_THRESHOLD, TTL_EXTEND_TO);
+    }
+
+    fn require_not_paused(env: &Env) -> Result<(), DisputeError> {
+        if env
+            .storage()
+            .instance()
+            .get(&DataKey::Paused)
+            .unwrap_or(false)
+        {
+            return Err(DisputeError::Paused);
+        }
+        Ok(())
     }
 }
 

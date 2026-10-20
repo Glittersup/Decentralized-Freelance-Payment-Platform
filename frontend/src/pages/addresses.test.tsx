@@ -48,7 +48,10 @@ vi.mock("../lib/api", () => ({
   // Dashboard loads the connected wallet's milestone reminders (#74).
   fetchUserJobs: vi.fn(async () => []),
   fetchRatingsReceived: vi.fn(async () => []),
-  fetchTransactions: vi.fn(async () => []),
+  fetchTransactions: vi.fn(async () => ({
+    data: [],
+    pagination: { page: 1, limit: 20, total: 0, totalPages: 0 },
+  })),
   fetchReminders: vi.fn(async () => []),
   authenticate: vi.fn(),
   createJob: vi.fn(),

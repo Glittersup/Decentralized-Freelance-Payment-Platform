@@ -32,6 +32,7 @@ import { verifySignedMessage } from "../lib/signature";
 import { isValidStellarAddress } from "../lib/stellarAddress";
 import { formatBaseUnitsForAsset } from "../lib/assets";
 import { buildMilestoneReminders, parseHorizonHours } from "../lib/reminders";
+import { transactionHistoryQuerySchema } from "../lib/schemas";
 
 export const usersRouter = Router();
 
@@ -217,6 +218,11 @@ usersRouter.get("/", getFreelancersHandler);
 // `txHash` is what the client turns into an explorer link.
 usersRouter.get("/:address/transactions", async (req, res, next) => {
   try {
+    const parsed = transactionHistoryQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw new AppError(400, parsed.error.issues.map((issue) => issue.message).join(", "));
+    }
+    const { page, limit } = parsed.data;
     const address = req.params.address;
     const jobs = await prisma.job.findMany({
       where: {
@@ -234,18 +240,26 @@ usersRouter.get("/:address/transactions", async (req, res, next) => {
     }
     const escrowIds = [...assetByEscrow.keys()].map((id) => BigInt(id));
     if (escrowIds.length === 0) {
-      res.json([]);
+      res.json({
+        data: [],
+        pagination: { page, limit, total: 0, totalPages: 0 },
+      });
       return;
     }
 
-    const events = await prisma.chainEvent.findMany({
-      where: { escrowId: { in: escrowIds } },
-      orderBy: { ledger: "desc" },
-      take: 200,
-    });
+    const where = { escrowId: { in: escrowIds } };
+    const [total, events] = await Promise.all([
+      prisma.chainEvent.count({ where }),
+      prisma.chainEvent.findMany({
+        where,
+        orderBy: [{ ledger: "desc" }, { id: "desc" }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
 
-    res.json(
-      events.map((event) => {
+    res.json({
+      data: events.map((event) => {
         const symbol = assetByEscrow.get(event.escrowId.toString()) ?? null;
         return {
           id: event.id,
@@ -258,7 +272,13 @@ usersRouter.get("/:address/transactions", async (req, res, next) => {
           createdAt: event.createdAt,
         };
       }),
-    );
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (err) {
     next(err);
   }

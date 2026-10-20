@@ -217,7 +217,14 @@ describe("Milestone Deliverables API (Issue #65)", () => {
 
   describe("GET /api/milestones/:id/deliverables", () => {
     it("returns deliverables for a milestone", async () => {
-      h.milestone.findUnique.mockResolvedValue({ id: "m_1" });
+      const token = await tokenFor(FREELANCER);
+      h.milestone.findUnique.mockResolvedValue({
+        id: "m_1",
+        job: {
+          client: { stellarAddress: CLIENT },
+          freelancer: { stellarAddress: FREELANCER },
+        },
+      });
       h.deliverable.findMany.mockResolvedValue([
         {
           id: "deliv_1",
@@ -228,7 +235,9 @@ describe("Milestone Deliverables API (Issue #65)", () => {
         },
       ]);
 
-      const res = await fetch(`${baseUrl}/api/milestones/m_1/deliverables`);
+      const res = await fetch(`${baseUrl}/api/milestones/m_1/deliverables`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       expect(res.status).toBe(200);
       const json = (await res.json()) as any;
       expect(json).toHaveLength(1);

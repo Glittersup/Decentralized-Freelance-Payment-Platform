@@ -58,6 +58,7 @@ export const DISPUTE_ERROR_MESSAGES: Record<number, string> = {
   11: "The arbitrator panel is invalid.",
   12: "The approval threshold is invalid.",
   13: "The panel hasn't approved that exact split enough times yet.",
+  14: "This contract is paused.",
 };
 
 /** `ReputationError` discriminants from `contracts/reputation/src/lib.rs`. */

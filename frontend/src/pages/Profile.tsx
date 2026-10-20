@@ -42,6 +42,7 @@ import {
   type JobApi,
   type ReceivedRatingApi,
   type TransactionApi,
+  type TransactionHistoryApi,
   type UserProfileApi,
 } from "../lib/api";
 import { actionLabel } from "../lib/activity";
@@ -61,6 +62,9 @@ export default function Profile() {
   const [jobs, setJobs] = useState<JobApi[] | null>(null);
   const [ratings, setRatings] = useState<ReceivedRatingApi[] | null>(null);
   const [transactions, setTransactions] = useState<TransactionApi[] | null>(null);
+  const [transactionPagination, setTransactionPagination] =
+    useState<TransactionHistoryApi["pagination"] | null>(null);
+  const [transactionPage, setTransactionPage] = useState(1);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
   // Notification preferences (issue #67): only the profile's owner may see or
@@ -112,16 +116,18 @@ export default function Profile() {
     setJobs(null);
     setRatings(null);
     setTransactions(null);
+    setTransactionPagination(null);
     void Promise.all([
       fetchUserJobs(address),
       fetchRatingsReceived(address),
-      fetchTransactions(address),
+      fetchTransactions(address, transactionPage),
     ])
-      .then(([jobRows, ratingRows, txRows]) => {
+      .then(([jobRows, ratingRows, history]) => {
         if (cancelled) return;
         setJobs(jobRows);
         setRatings(ratingRows);
-        setTransactions(txRows);
+        setTransactions(history.data);
+        setTransactionPagination(history.pagination);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -130,10 +136,15 @@ export default function Profile() {
         setJobs([]);
         setRatings([]);
         setTransactions([]);
+        setTransactionPagination(null);
       });
     return () => {
       cancelled = true;
     };
+  }, [address, transactionPage]);
+
+  useEffect(() => {
+    setTransactionPage(1);
   }, [address]);
 
   useEffect(() => {
@@ -350,6 +361,27 @@ export default function Profile() {
             </tbody>
           </table>
         )}
+        {transactionPagination && transactionPagination.totalPages > 1 && (
+          <nav aria-label="Transaction history pages">
+            <button
+              type="button"
+              onClick={() => setTransactionPage((page) => Math.max(1, page - 1))}
+              disabled={transactionPagination.page <= 1}
+            >
+              Previous
+            </button>
+            <span>
+              Page {transactionPagination.page} of {transactionPagination.totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setTransactionPage((page) => page + 1)}
+              disabled={transactionPagination.page >= transactionPagination.totalPages}
+            >
+              Next
+            </button>
+          </nav>
+        )}
       </section>
 
       {isOwner && (
@@ -419,4 +451,3 @@ export default function Profile() {
     </Layout>
   );
 }
-

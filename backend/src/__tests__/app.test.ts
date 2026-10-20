@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import type { Server } from "node:http";
 import { Keypair } from "@stellar/stellar-sdk";
 import { isValidStellarAddress } from "../lib/stellarAddress";
-import { createJobSchema } from "../lib/schemas";
+import { createDeliverableSchema, createJobSchema } from "../lib/schemas";
 import { jsonReplacer } from "../lib/json";
 import { MAX_JOB_TAGS, SKILL_TAG_SLUGS } from "../lib/tags";
 
@@ -183,6 +183,35 @@ describe("POST /api/jobs skill tags", () => {
   it("rejects more tags than the cap", () => {
     const tooMany = SKILL_TAG_SLUGS.slice(0, MAX_JOB_TAGS + 1);
     expect(createJobSchema.safeParse({ ...valid, tags: tooMany }).success).toBe(false);
+  });
+});
+
+describe("POST /api/milestones/:id/deliverables request validation", () => {
+  const valid = {
+    fileName: "work.zip",
+    fileUrl: "https://example.com/work.zip",
+  };
+
+  it("accepts a valid upload payload with optional metadata", () => {
+    expect(
+      createDeliverableSchema.parse({
+        ...valid,
+        fileSize: 1024,
+        fileType: "application/zip",
+        description: "Completed deliverables",
+      }),
+    ).toEqual({
+      ...valid,
+      fileSize: 1024,
+      fileType: "application/zip",
+      description: "Completed deliverables",
+    });
+  });
+
+  it("rejects malformed URLs, non-positive sizes, and oversized fields", () => {
+    expect(createDeliverableSchema.safeParse({ ...valid, fileUrl: "not-a-url" }).success).toBe(false);
+    expect(createDeliverableSchema.safeParse({ ...valid, fileSize: 0 }).success).toBe(false);
+    expect(createDeliverableSchema.safeParse({ ...valid, description: "x".repeat(1001) }).success).toBe(false);
   });
 });
 

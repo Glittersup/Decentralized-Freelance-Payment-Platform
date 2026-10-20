@@ -66,7 +66,7 @@ Honest snapshot of what works today (see [`docs/TESTNET.md`](./docs/TESTNET.md) 
 | `escrow` contract | ✅ Complete — milestones (editable before funding, partial releases), expiry refunds, validated inputs, TTL, events |
 | `dispute` contract | ✅ Complete — verified raise, M-of-N arbitrator panel, resolution that calls back into escrow, dispute timelock |
 | `reputation` contract | ✅ Complete — escrow-verified 1–5 ratings, amount-weighted aggregates, per-pair anti-spam (`docs/REPUTATION.md`) |
-| Contract tests | ✅ 86 tests: 83 unit tests (escrow 49, dispute 17, reputation 17) covering every state transition and failure path, plus 3 end-to-end tests in `contracts/dispute/tests/full_flow.rs` that drive escrow + dispute + reputation together |
+| Contract tests | ✅ 98 tests: 95 unit tests (escrow 57, dispute 21, reputation 17) covering every state transition and failure path, plus 3 end-to-end tests in `contracts/dispute/tests/full_flow.rs` that drive escrow + dispute + reputation together |
 | Backend tests | ✅ 138 tests |
 | Frontend tests | ✅ 156 tests (Vitest + Testing Library) — pages, components and lib helpers |
 | Testnet deployment | ✅ Deployed and initialized (ids in [`deployments/testnet.json`](./deployments/testnet.json)) |
@@ -174,7 +174,7 @@ return an **unsigned XDR** for the client to sign, and never a key.
 | `GET` | `/api/users/challenge` | — | Issue a single-use nonce for SEP-53 signing |
 | `POST` | `/api/users/auth` | — | Verify the signed message, return a JWT |
 | `GET` | `/api/users/:address` | — | Public profile |
-| `GET` | `/api/users/:address/transactions` | — | Indexed on-chain history for the address's escrows, with explorer links |
+| `GET` | `/api/users/:address/transactions?page=1&limit=20` | — | Paginated indexed on-chain history for the address's escrows, with explorer links and totals |
 | `GET` | `/api/users/:address/reminders` | — | Milestone deadlines that are overdue or due soon (`?withinHours=`) |
 | `PUT` | `/api/users/me` | ✅ | Update your own profile |
 | `GET` | `/api/jobs` | — | List jobs with status + `tag` filters and pagination |
@@ -457,7 +457,7 @@ not just a restart.
 ## Testing
 
 ```bash
-# Contracts — 86 tests (83 unit + 3 integration)
+# Contracts — 98 tests (95 unit + 3 integration)
 cd contracts
 cargo fmt --all -- --check
 cargo clippy --all-targets -- -D warnings
