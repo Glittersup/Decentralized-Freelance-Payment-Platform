@@ -166,7 +166,7 @@ Details of the dispute panel and timelock are in
 | dispute | `raise(escrow_id, escrow_contract, raised_by, reason)` | verifies escrow is Disputed and caller is a party |
 | dispute | `approve(dispute_id, arbitrator, client_share, freelancer_share)` | panel-only; records an approval of a specific split |
 | dispute | `arbitrate(dispute_id, client_share, freelancer_share)` | needs `threshold` matching approvals; cross-calls `escrow.resolve` |
-| dispute | `get` / `dispute_for` / `arbitrators` / `threshold` | views |
+| dispute | `get(dispute_id)` / `dispute_for(escrow_contract, escrow_id)` / `arbitrators()` / `threshold()` | views |
 | reputation | `init(admin, escrow_contract)` | one-time |
 | reputation | `set_escrow_contract(escrow_contract)` | admin-only; rotates the trusted escrow contract |
 | reputation | `submit(rater, ratee, escrow_id, score)` | verified against escrow; 1–5 |

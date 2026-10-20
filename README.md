@@ -143,7 +143,7 @@ state machine, cross-contract calls, and the backend's role — see
 | `raise(escrow_id, escrow_contract, raised_by, reason)` | Records the dispute and returns its id; cross-checks that the escrow is `Disputed` and `raised_by` is a party |
 | `approve(dispute_id, arbitrator, client_share, freelancer_share)` | Panel-only vote on a split; rejects negative shares only — the sum must equal the funds held, enforced later by `escrow.resolve` |
 | `arbitrate(dispute_id, client_share, freelancer_share)` | Executes the split once approvals *for that exact split* reach the threshold; cross-calls `escrow.resolve` |
-| `get(dispute_id)` / `dispute_for(escrow_id)` / `arbitrators()` / `threshold()` | Read-only views |
+| `get(dispute_id)` / `dispute_for(escrow_contract, escrow_id)` / `arbitrators()` / `threshold()` | Read-only views |
 
 ### `reputation`
 
