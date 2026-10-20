@@ -393,6 +393,26 @@ fn fund_moves_funds_into_escrow() {
 }
 
 #[test]
+fn fund_at_expiry_is_rejected_without_moving_funds() {
+    let f = fixture();
+    let id = f.c().create(
+        &f.client,
+        &f.freelancer,
+        &f.token,
+        &milestones(&f.env, &[1_000]),
+        &2_000,
+    );
+    f.env.ledger().set_timestamp(2_000);
+
+    let res = f.c().try_fund(&id);
+
+    assert!(matches!(res, Err(Ok(EscrowError::InvalidExpiry))));
+    assert_eq!(f.c().get(&id).status, EscrowStatus::Created);
+    assert_eq!(f.balance(&f.client), 10_000);
+    assert_eq!(f.balance(&f.escrow), 0);
+}
+
+#[test]
 fn funded_event_carries_freelancer() {
     let f = fixture();
     let id = f.c().create(

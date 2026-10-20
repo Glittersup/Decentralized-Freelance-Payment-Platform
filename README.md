@@ -123,7 +123,7 @@ state machine, cross-contract calls, and the backend's role — see
 | `set_dispute_contract(dispute_contract)` | Admin-only, for rotating the dispute contract |
 | `create(client, freelancer, token, milestones, expiry)` | Creates an unfunded escrow and returns its id |
 | `update_milestones(escrow_id, milestones)` | Client-only milestone editing, before funding |
-| `fund(escrow_id)` | Moves the asset into escrow and activates the job |
+| `fund(escrow_id)` | Client-only; moves the asset into escrow before expiry and activates the job |
 | `release_milestone(escrow_id, milestone_index)` | Releases a whole milestone to the freelancer |
 | `release_partial(escrow_id, milestone_index, amount)` | Releases part of a milestone; tracks `released_amount` |
 | `open_dispute(escrow_id, initiator)` | Either participant freezes the escrow |
@@ -136,7 +136,7 @@ state machine, cross-contract calls, and the backend's role — see
 
 | Function | Purpose |
 |----------|---------|
-| `init(arbitrators, threshold)` | One-shot setup; validates a non-empty panel and `1 <= threshold <= len` |
+| `init(arbitrators, threshold)` | One-shot setup; validates a non-empty panel of unique addresses and `1 <= threshold <= len` |
 | `raise(escrow_id, escrow_contract, raised_by, reason)` | Records the dispute and returns its id; cross-checks that the escrow is `Disputed` and `raised_by` is a party |
 | `approve(dispute_id, arbitrator, client_share, freelancer_share)` | Panel-only vote on a split; rejects negative shares only — the sum must equal the funds held, enforced later by `escrow.resolve` |
 | `arbitrate(dispute_id, client_share, freelancer_share)` | Executes the split once approvals *for that exact split* reach the threshold; cross-calls `escrow.resolve` |

@@ -5,7 +5,7 @@ a timelock escape hatch if they never do.
 
 ## Actors
 
-- **Panel** — a list of arbitrator addresses, set once at `dispute.init`.
+- **Panel** — a list of unique arbitrator addresses, set once at `dispute.init`.
   `threshold` (M) of the N panel members must approve a resolution.
 - **Parties** — the escrow's client and freelancer. Either may `raise` a dispute.
 - **Escrow contract** — holds the funds and is the only contract that can move
@@ -55,7 +55,9 @@ a timelock escape hatch if they never do.
   `Refunded`. A late ruling then fails `escrow.resolve`'s status check, so funds
   cannot be paid out twice.
 
-## Off-chain recordThe backend indexer mirrors these events into `Job` and `Dispute` rows, and three
+## Off-chain record
+
+The backend indexer mirrors these events into `Job` and `Dispute` rows, and three
 properties of that mirror are deliberate:
 
 - **Who runs the two transactions.** Steps 1 and 2 above are one user action:
