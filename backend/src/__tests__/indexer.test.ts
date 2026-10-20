@@ -7,6 +7,7 @@ import {
   decodeEventName,
   type ContractEventLike,
 } from "../lib/events";
+import { FUNDED_JOB_STATUS } from "../lib/jobStatus";
 import {
   EVENT_PAGE_LIMIT,
   EVENT_TOPIC_FIELDS,
@@ -645,7 +646,8 @@ describe("unlinked escrow events (issue #38)", () => {
     await handleFunded(7n, store);
     expect(updatedJobs).toContainEqual({
       where: { escrowId: 7n },
-      data: { status: "ACTIVE" },
+      // The route and the indexer read the same constant (issue #43).
+      data: { status: FUNDED_JOB_STATUS },
     });
   });
 
