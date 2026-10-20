@@ -341,8 +341,8 @@ usersRouter.get("/me", requireAuth, async (_req, res, next) => {
 
 // PUT /api/users/me
 export const updateSchema = z.object({
-  displayName: z.string().max(80).optional(),
-  bio: z.string().max(500).optional(),
+  displayName: z.string().trim().max(80).optional(),
+  bio: z.string().trim().max(2000).optional(),
   email: z
     .string()
     .email()
