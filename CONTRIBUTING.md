@@ -149,6 +149,7 @@ Details of the dispute panel and timelock are in
 |----------|----------|-------|
 | escrow | `init(admin, dispute_contract)` | one-time; admin can rotate the dispute contract |
 | escrow | `set_dispute_contract(dispute_contract)` | admin-only; rotates the dispute contract |
+| escrow | `set_dispute_timeout(timeout_seconds)` | admin-only; sets the positive timeout used by future disputes |
 | escrow | `create(client, freelancer, token, milestones, expiry)` | validates amounts/expiry; returns id |
 | escrow | `update_milestones(escrow_id, milestones)` | client-only, while still `Created` (before funding); re-validates and recomputes the total |
 | escrow | `fund(escrow_id)` | client deposits the total |
@@ -157,14 +158,17 @@ Details of the dispute panel and timelock are in
 | escrow | `open_dispute(escrow_id, initiator)` | either party; freezes the escrow and starts the dispute timelock |
 | escrow | `resolve(escrow_id, client_share, freelancer_share)` | **dispute contract only**; shares must sum to the funds held |
 | escrow | `reclaim_expired(escrow_id)` | client-only refund of the unreleased remainder after expiry; earlier releases are not clawed back |
-| escrow | `reclaim_after_dispute_timeout(escrow_id)` | client refund from `Disputed` once the dispute deadline passes |
-| escrow | `get(escrow_id)` / `dispute_contract()` / `dispute_deadline(escrow_id)` | views |
-| dispute | `init(arbitrators, threshold)` | one-time; every panel member authorizes |
+| escrow | `reclaim_after_dispute_timeout(escrow_id)` | client refund from `Disputed` once the configured dispute deadline passes |
+| escrow | `get(escrow_id)` / `dispute_contract()` / `dispute_deadline(escrow_id)` / `dispute_timeout_seconds()` | views |
+| dispute | `init(admin, arbitrators, threshold)` | one-time; admin and every unique panel member authorize |
+| dispute | `set_panel(arbitrators, threshold)` | admin-only; replaces the panel and invalidates previous approvals |
+| dispute | `set_threshold(threshold)` | admin-only; threshold must be within panel size |
 | dispute | `raise(escrow_id, escrow_contract, raised_by, reason)` | verifies escrow is Disputed and caller is a party |
 | dispute | `approve(dispute_id, arbitrator, client_share, freelancer_share)` | panel-only; records an approval of a specific split |
 | dispute | `arbitrate(dispute_id, client_share, freelancer_share)` | needs `threshold` matching approvals; cross-calls `escrow.resolve` |
 | dispute | `get` / `dispute_for` / `arbitrators` / `threshold` | views |
 | reputation | `init(admin, escrow_contract)` | one-time |
+| reputation | `set_escrow_contract(escrow_contract)` | admin-only; rotates the trusted escrow contract |
 | reputation | `submit(rater, ratee, escrow_id, score)` | verified against escrow; 1–5 |
 | reputation | `get_aggregate(address)` / `get_rating(rater, escrow_id)` | views; aggregate is amount-weighted (see `docs/REPUTATION.md`) |
 

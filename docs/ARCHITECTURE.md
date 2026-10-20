@@ -93,7 +93,7 @@ is only `released` once `released_amount == amount`.
 | `Created` | `Active` | client | — | transfers `total_amount` into the contract, emits `funded` |
 | `Active` | `Active` / `Completed` | client | milestone not already released, index in range | pays the milestone's outstanding amount, emits `milestone_released`; `Completed` when the last one is fully paid |
 | `Active` | `Active` / `Completed` | client | `0 < amount <= remaining on milestone` | pays `amount`, accumulates `released_amount`, emits `milestone_released`; `Completed` when every milestone is fully paid |
-| `Active` | `Disputed` | client or freelancer | caller is a party | freezes the escrow, sets `dispute_deadline = now + 7 days`, emits `dispute_opened` |
+| `Active` | `Disputed` | client or freelancer | caller is a party | freezes the escrow, sets `dispute_deadline = now + configured timeout`, emits `dispute_opened` |
 | `Active` | `Refunded` | client | `now > expiry` | refunds every unreleased milestone, emits `refunded` |
 | `Disputed` | `Completed` | registered dispute contract only | shares are non-negative and sum exactly to the unreleased balance | marks every milestone released, pays both shares, emits `resolved` |
 | `Disputed` | `Refunded` | client | `now > dispute_deadline` | refunds the unreleased balance, emits `refunded` |
@@ -109,10 +109,12 @@ requires the registered dispute contract's address, not a user.
 
 ### 2.2 `dispute` — the arbitrator panel
 
-`dispute.init(arbitrators, threshold)` is one-shot and requires every listed
-arbitrator's signature, so a fresh deployment cannot be front-run by an
-attacker installing themselves. It validates a non-empty panel and
-`1 <= threshold <= panel.len()`.
+`dispute.init(admin, arbitrators, threshold)` is one-shot and requires the
+admin's and every listed arbitrator's signatures, so a fresh deployment cannot
+be front-run by an attacker installing themselves. It validates a non-empty,
+unique panel and `1 <= threshold <= panel.len()`. The admin can replace the
+panel with `set_panel` or change the threshold with `set_threshold`; replacing
+the panel invalidates votes from the old panel.
 
 ```
 raise(escrow_id, escrow_contract, raised_by, reason)
@@ -140,9 +142,11 @@ Two properties matter:
   checks that the two shares sum to the funds still held, so a buggy or
   compromised dispute contract cannot over- or under-pay.
 
-The 7-day deadline set by `open_dispute` is the escape hatch: if the panel never
-rules, the client can `reclaim_after_dispute_timeout` and recover the
-unreleased balance. See [`DISPUTES.md`](./DISPUTES.md) for the operational
+The configured deadline set by `open_dispute` is the escape hatch: if the panel
+never rules, the client can `reclaim_after_dispute_timeout` and recover the
+unreleased balance. The escrow admin controls the positive timeout for future
+disputes with `set_dispute_timeout` (default: 7 days). See
+[`DISPUTES.md`](./DISPUTES.md) for the operational
 flow.
 
 ### 2.3 `reputation` — ratings
@@ -264,7 +268,7 @@ backend verifies it and issues a JWT. Nonces are persisted so a replay fails.
 | Indexer cannot decode an event | State would drift | the event goes to `IndexerDeadLetter` and the run logs it |
 | RPC loses old history | Events older than the window are unrecoverable | the cursor is clamped with a warning; do not leave the indexer down for more than a week |
 | Backend is compromised | It can lie in its projections, read its own database and build transactions | it still cannot sign, hold funds, or move money; the chain remains authoritative |
-| Dispute panel stalls | Funds stay frozen | client's 7-day `reclaim_after_dispute_timeout` |
+| Dispute panel stalls | Funds stay frozen | client's configured `reclaim_after_dispute_timeout` |
 
 ## 5. Deployment shape
 
